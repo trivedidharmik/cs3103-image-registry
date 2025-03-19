@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-from flask import Flask, jsonify, abort, request, make_response
+from flask import Flask, jsonify, abort, request, make_response, session
 from flask_restful import Resource, Api
+from flask_session import Session
 import pymysql.cursors
 import json
 
 import cgitb
 import cgi
 import sys
+import bcrypt
 cgitb.enable()
 
 from db_util import db_access
@@ -16,6 +18,11 @@ import settings # Our server and db settings, stored in settings.py
 app = Flask(__name__, static_folder="../front-end", static_url_path='/static')
 api = Api(app)
 
+app.secret_key = settings.SECRET_KEY
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_COOKIE_NAME'] = 'imageRegistry'
+app.config['SESSION_COOKIE_DOMAIN'] = settings.APP_HOST
+Session(app)
 
 ####################################################################################
 #
@@ -61,10 +68,77 @@ api.add_resource(RegisterStatic, '/register')
 #
 # Specific user endpoints
 #
+
+class Register(Resource):
+    def post(self):
+
+        email = request.json["email"]
+        password = request.json["password"]
+        if not email or not password:
+            abort(400, description="Missing email or password")
+
+        hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        sqlProc = 'registerUser'
+        sqlArgs = [email, hashed_pw]
+
+        try:
+            rows = db_access(sqlProc , sqlArgs)
+        except Exception as e:
+            abort(500, description=str(e))    
+
+        return make_response(jsonify({"message": "Registration successful. Please verify your email."}), 201)
+
+api.add_resource(Register, "/register")
+
+
+class SignIn(Resource):
+    def post(self):
+        
+        email = request.json("email")
+        password = request.json("password")
+
+        if not email or not password:
+            abort(400, description="Missing email or password")
+
+
+        sqlProc = 'getUserByEmail'
+        sqlArgs = [email]
+        try:      
+            user_data = db_access(sqlProc , sqlArgs)
+            if not user_data:
+                return make_response(jsonify({"message": "Invalid credentials"}), 401)
+
+            stored_hash = user_data[0]["passwordHash"]
+            user_id = user_data[0]["id"]
+
+            if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+                return make_response(jsonify({"message": "Invalid credentials"}), 401)
+
+            session["user_id"] = user_id
+
+            location_header = f"/users/{user_id}/images"
+            return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
+
+        except Exception as e:
+            abort(500, description=str(e))
+            
+api.add_resource(SignIn, "/signin")
+
+class SignOut(Resource):
+    def post(self):
+        '''Remove session data'''
+        session.pop("user_id", None)
+        return jsonify({"message": "Logged out successfully"}), 200
+
+api.add_resource(SignOut , '/signout')
+
 class UserImages(Resource):
 	
 	def get(self, user_id):
 		# GET: Return all images for a user
+		if "user_id" not in session or session["user_id"]!=user_id:
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
+
 		sqlProc = 'getUserImages'
 		sqlArgs = [user_id]
 		try:
@@ -82,6 +156,8 @@ class UserImages(Resource):
         #    -d '{"url": "https://en.wikipedia.org/wiki/Book#/media/File:Gutenberg_Bible,_Lenox_Copy,_New_York_Public_Library,_2009._Pic_01.jpg", "title": "Book", "desc":
         #		  "picture of a book", "visibility": "public"}'
         #         http://cs3103.cs.unb.ca:xxxxx/users/1234/images
+		if "user_id" not in session or session["user_id"]!=user_id:
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
 
 		if not request.json:
 			abort(400) # bad request
@@ -112,6 +188,8 @@ class UserImages(Resource):
 		# DELETE: Delete identified image
 		#
 		# Example request: curl -X DELETE http://cs3103.cs.unb.ca:xxxxx/users/1234/images '{"image_id": 3}'
+		if "user_id" not in session or session["user_id"]!=user_id:
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
 
 		if not request.json or "image_id" not in request.json:
 			abort(400)
@@ -129,6 +207,9 @@ class UserImages(Resource):
 class ImageCount(Resource):
 	def get(self, user_id):
 		# GET: Returns the amount of images for the specified user id
+		if "user_id" not in session or session["user_id"]!=user_id:
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
+
 		sqlProc = "getUserImageCount"
 		sqlArgs = [user_id]
 		try:
@@ -150,6 +231,12 @@ class Image(Resource):
 		except Exception as e:
 			abort(500, message = e)
 		
+		img = row[0]
+		if img["visibility"] == "private":
+      
+			if "user_id" not in session or session["user_id"]!=img["user_id"]:
+				return make_response(jsonify({"message": "Unauthorized"}), 401)
+
 		return make_response(jsonify({"image": row}), 200)
 
 	def post(self, image_id):
@@ -208,8 +295,15 @@ class Search(Resource):
 		# Searching by title and visibility, so take only the elements that exist in both
 		else:
 			rows = list(set(title_rows) & set(visibility_rows))
-
-		return make_response(jsonify({'images': rows}), 200) # turn set into json and return it
+		imgs_visible = []
+		for img in rows:
+			if img["visibility"] == "private":
+				if "user_id" not in session or session["user_id"]==img["user_id"]:
+					imgs_visible.append(img)
+			else:
+				imgs_visible.append(img)
+    
+		return make_response(jsonify({'images': imgs_visible}), 200) # turn set into json and return it
 
 class MostActive(Resource):
 	def get(self):
@@ -226,6 +320,9 @@ class MostActive(Resource):
 class CascadeDelete(Resource):
 	def delete(self, user_id):
 		# DELETE: Cascade delete a user, including all of their images -> Admin only
+		if "user_id" not in session or session["user_id"]!=user_id:
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
+
 		sqlProc = "deleteUser"
 		sqlArgs = [user_id]
 
