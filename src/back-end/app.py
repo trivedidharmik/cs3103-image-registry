@@ -13,7 +13,7 @@ cgitb.enable()
 from db_util import db_access
 import settings # Our server and db settings, stored in settings.py
 
-app = Flask(__name__, static_url_path='/static')
+app = Flask(__name__, static_folder="../front-end", static_url_path='/static')
 api = Api(app)
 
 
@@ -37,21 +37,21 @@ def not_found(error):
 # Root home page with sign in button
 class Root(Resource):
 	def get(self):
-		return app.send_static_file('../front-end/index.html')
+		return app.send_static_file('index.html')
 
 api.add_resource(Root,'/')
 
 # Static endpoint for sign in
 class SignInStatic(Resource):
 	def get(self):
-		return app.send_static_file('../front-end/signin.html')
+		return app.send_static_file('signin.html')
 
 api.add_resource(SignInStatic,'/signin')
 
 # Static endpoint for register
 class RegisterStatic(Resource):
 	def get(self):
-		return app.send_static_file('../front-end/register.html')
+		return app.send_static_file('register.html')
 	
 api.add_resource(RegisterStatic, '/register')
 
