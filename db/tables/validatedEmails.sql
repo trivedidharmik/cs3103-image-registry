@@ -1,0 +1,5 @@
+CREATE TABLE ValidatedEmails (
+    userId INT PRIMARY KEY,
+    validatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (userId) REFERENCES Users(userId) ON DELETE CASCADE
+);

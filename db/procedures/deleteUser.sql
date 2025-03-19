@@ -1,0 +1,6 @@
+DELIMITER //
+CREATE PROCEDURE deleteUser(IN p_userId INT)
+BEGIN
+    DELETE FROM Users WHERE userId = p_userId;
+END //
+DELIMITER ;
