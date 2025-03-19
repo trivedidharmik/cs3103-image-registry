@@ -1,0 +1,5 @@
+# Cache directories
+__pycache__/
+
+# Specific files
+settings.py
