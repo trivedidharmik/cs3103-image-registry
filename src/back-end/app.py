@@ -55,11 +55,13 @@ class RegisterStatic(Resource):
 	
 api.add_resource(RegisterStatic, '/register')
 
+# TODO: /verify and /signout endpoints
+
 ####################################################################################
 #
 # Specific user endpoints
 #
-class Images(Resource):
+class UserImages(Resource):
 	
 	def get(self, user_id):
 		# GET: Return all images for a user
@@ -79,11 +81,11 @@ class Images(Resource):
         # curl -i -X POST -H "Content-Type: application/json"
         #    -d '{"url": "https://en.wikipedia.org/wiki/Book#/media/File:Gutenberg_Bible,_Lenox_Copy,_New_York_Public_Library,_2009._Pic_01.jpg", "title": "Book", "desc":
         #		  "picture of a book", "visibility": "public"}'
-        #         http://cs3103.cs.unb.ca:xxxxx/users/<int:user_id>/images
+        #         http://cs3103.cs.unb.ca:xxxxx/users/1234/images
 
 		if not request.json:
 			abort(400) # bad request
-		if not 'url' in request.json or not 'title' in request.json or not 'desc' in request.json or not 'visibility' in request.json:
+		if not 'url' in request.json or not 'title' in request.json or not 'visibility' in request.json:
 			abort(400)
 
 		# The request object holds the ... wait for it ... client request!
@@ -93,7 +95,7 @@ class Images(Resource):
 		desc = request.json['desc']
 		visibility = request.json['visibility']
 
-		sqlProc = 'createSchool'
+		sqlProc = 'insertImage'
 		sqlArgs = [user_id, url, title, desc, visibility]
 		try:
 			row = db_access(sqlProc, sqlArgs)
@@ -104,48 +106,149 @@ class Images(Resource):
 		# Yes, now would be a good time check out the procedure.
 		uri = request.base_url+'/'+str(row[0]['LAST_INSERT_ID()'])
 		return make_response(jsonify( { "uri" : uri } ), 201) # successful resource creation
+	
+	
+	def delete(self, user_id):
+		# DELETE: Delete identified image
+		#
+		# Example request: curl -X DELETE http://cs3103.cs.unb.ca:xxxxx/users/1234/images '{"image_id": 3}'
 
-class School(Resource):
-    # GET: Return identified school resource
-	#
-	# Example request: curl http://cs3103.cs.unb.ca:xxxxx/schools/2
-	def get(self, schoolId):
-		sqlProc = 'getSchool'
-		sqlArgs = [schoolId,]
-		try:
-			rows = db_access(sqlProc, sqlArgs)
-		except Exception as e:
-			abort(500, message = e) # server error
-		return make_response(jsonify({'schools': rows}), 200) # turn set into json and return it
-
-    # DELETE: Delete identified school resource
-    #
-    # Example request: curl -X DELETE http://cs3103.cs.unb.ca:xxxxx/schools/2
-	def delete(self, schoolId):
-		print("SchoolId to delete: "+str(schoolId))
-		# 1. You need to create the stored procedure in MySQLdb (deleteSchool)
-		# 2. You need to write the code here to call the stored procedure
-		# 3. What should/could the response code be? How to return it?
-		# 4. Anytime you change a database, you need to commit that change.
-		#       See the POST example for more
-		sqlProc = 'deleteSchool'
-		sqlArgs = [schoolId,]
+		if not request.json or "image_id" not in request.json:
+			abort(400)
+		
+		image_id = request.json["image_id"]
+		print("Image id to delete: " + str(image_id))
+		sqlProc = 'deleteImage'
+		sqlArgs = [image_id,]
 		try:
 			rows = db_access(sqlProc, sqlArgs)
 		except Exception as e:
 			abort(500, message = e)
 		return make_response('', 200)
+
+class ImageCount(Resource):
+	def get(self, user_id):
+		# GET: Returns the amount of images for the specified user id
+		sqlProc = "getUserImageCount"
+		sqlArgs = [user_id]
+		try:
+			count = db_access(sqlProc, sqlArgs)
+		except Exception as e:
+			abort(500, message = e)
+		
+		return make_response(jsonify({"count": count}), 200)
+
+class Image(Resource):
+	def get(self, image_id):
+		# GET: Get a specific image by image id (only show private image if its user matches the user who is signed in)
+		# TODO: Make stored procedure for this
+		
+		sqlProc = "getImage"
+		sqlArgs = [image_id]
+		try:
+			row = db_access(sqlProc, sqlArgs)
+		except Exception as e:
+			abort(500, message = e)
+		
+		return make_response(jsonify({"image": row}), 200)
+
+	def post(self, image_id):
+		# POST: Update a given image contents
+		title = request.json['title']
+		desc = request.json['desc']
+		visibility = request.json['visibility']
+
+		sqlProc = "updateImageData"
+		sqlArgs = [image_id, title, desc, visibility]
+
+		try:
+			row = db_access(sqlProc, sqlArgs)
+		except Exception as e:
+			abort(500, message = e)
+		uri = request.base_url+'/'+str(row[0]['LAST_INSERT_ID()'])
+		return make_response(jsonify({"uri": uri}), 201)
+
+class Search(Resource):
+    # GET: Return all images with matching title/visibility (only shows private images of user who is signed in)
+	#
+	# Example request: curl http://cs3103.cs.unb.ca:xxxxx/images/search/?title=Book&visibility=private
+	def get(self):
+
+		if not request.json:
+			abort(400)
+		
+		# Need to search by either title, visibility or both
+		if "title" in request.json:
+			title = request.json["title"]
+			sqlProc = 'searchImagesByTitle'
+			sqlArgs = [title] # might need trailing , after title in args
+			try:
+				title_rows = db_access(sqlProc, sqlArgs)
+			except Exception as e:
+				abort(500, message = e) # server error
+
+		if "visibility" in request.json:
+			visibility = request.json["visibility"]
+			sqlProc = 'filterImagesByVisibility'
+			sqlArgs = [visibility]
+			try:
+				visibility_rows = db_access(sqlProc, sqlArgs)
+			except Exception as e:
+				abort(500, message = e) # server error
+		
+		if title_rows == None and visibility_rows == None:
+			abort(400)
+		
+		if visibility_rows == None:
+			rows = title_rows
+		
+		elif title_rows == None:
+			rows = visibility_rows
+		
+		# Searching by title and visibility, so take only the elements that exist in both
+		else:
+			rows = list(set(title_rows) & set(visibility_rows))
+
+		return make_response(jsonify({'images': rows}), 200) # turn set into json and return it
+
+class MostActive(Resource):
+	def get(self):
+		# GET: Get the most active user(s) -> Admin only
+		sqlProc = "getMostActiveUploaders"
+		sqlArgs = []
+
+		try:
+			rows = db_access(sqlProc, sqlArgs)
+		except Exception as e:
+			abort(500, message = e)
+		return make_response(jsonify({"users": rows}), 200)
+	
+class CascadeDelete(Resource):
+	def delete(self, user_id):
+		# DELETE: Cascade delete a user, including all of their images -> Admin only
+		sqlProc = "deleteUser"
+		sqlArgs = [user_id]
+
+		try:
+			success = db_access(sqlProc, sqlArgs)
+		except Exception as e:
+			abort(500, message = e)
+		return make_response(jsonify({"success": success}), 200)
+
+    
 ####################################################################################
 #
 # Identify/create endpoints and endpoint objects
 #
 api = Api(app)
-api.add_resource(Images, '/users/<int:user_id>/images')
-#api.add_resource(School, '/schools/<int:schoolId>')
+api.add_resource(UserImages, '/users/<int:user_id>/images')
+api.add_resource(ImageCount, '/users/<int:user_id>/image-count')
+api.add_resource(Image, '/images/<int:image_id>')
+api.add_resource(Search, '/images/search')
+api.add_resource(MostActive, '/analytics/most-active')
+api.add_resource(CascadeDelete, '/delUser')
 
 
 #############################################################################
-# xxxxx= last 5 digits of your studentid. If xxxxx > 65535, subtract 30000
 if __name__ == "__main__":
-#    app.run(host="cs3103.cs.unb.ca", port=xxxx, debug=True)
 	app.run(host=settings.APP_HOST, port=settings.APP_PORT, debug=settings.APP_DEBUG)

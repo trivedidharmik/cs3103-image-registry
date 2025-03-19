@@ -1,1 +1,6 @@
+# Cache directories
+__pycache__/
+sessions/
+
+# Specific files
 settings.py
