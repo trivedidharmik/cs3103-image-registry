@@ -197,7 +197,7 @@ class UserImages(Resource):
 		image_id = request.json["image_id"]
 		print("Image id to delete: " + str(image_id))
 		sqlProc = 'deleteImage'
-		sqlArgs = [image_id,]
+		sqlArgs = [image_id, user_id]
 		try:
 			rows = db_access(sqlProc, sqlArgs)
 		except Exception as e:
