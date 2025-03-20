@@ -13,6 +13,7 @@ import bcrypt
 cgitb.enable()
 
 from db_util import db_access
+from email_util import send_verify_email
 import settings # Our server and db settings, stored in settings.py
 
 app = Flask(__name__, static_folder="../front-end", static_url_path='/static')
@@ -62,7 +63,11 @@ class RegisterStatic(Resource):
 	
 api.add_resource(RegisterStatic, '/register')
 
-# TODO: /verify and /signout endpoints
+class VerifyStatic(Resource):
+	def get(self):
+		return app.send_static_file('verify.html')
+
+api.add_resource(VerifyStatic, '/verify')
 
 ####################################################################################
 #
@@ -70,65 +75,90 @@ api.add_resource(RegisterStatic, '/register')
 #
 
 class Register(Resource):
-    def post(self):
+	def post(self):
 
-        email = request.json["email"]
-        password = request.json["password"]
-        if not email or not password:
-            abort(400, description="Missing email or password")
+		email = request.json["email"]
+		password = request.json["password"]
+		if not email or not password:
+			abort(400, description="Missing email or password")
 
-        hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        sqlProc = 'registerUser'
-        sqlArgs = [email, hashed_pw]
+		hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+		sqlProc = 'registerUser'
+		sqlArgs = [email, hashed_pw]
 
-        try:
-            rows = db_access(sqlProc , sqlArgs)
-        except Exception as e:
-            abort(500, description=str(e))    
+		try:
+			verify_data = db_access(sqlProc , sqlArgs)
+		except Exception as e:
+			abort(500, description=str(e))
 
-        return make_response(jsonify({"message": "Registration successful. Please verify your email."}), 201)
+		# TODO: registerUser/generateVerificationToken procedures need to return created user_id and verification token to use in the url sent to email
+		user_id = verify_data["userId"]
+		token = verify_data["token"]
+		verify_url = f"http://{settings.APP_HOST}:{settings.APP_HOST}/users/{user_id}/verify/{token}"
+
+		try:
+			send_verify_email(email, verify_url)
+		except Exception as e:
+			abort(500, description=str(e))
+		
+		location_header = "/verify"
+		return make_response(jsonify({"message": "Registration successful. Please verify your email."}), 301, {"Location": location_header})
 
 api.add_resource(Register, "/register")
 
+class Verify(Resource):
+	def post(self, user_id, token_id):
+		sqlProc = "verifyEmail"
+		sqlArgs = [user_id, token_id]
+
+		try:
+			success = db_access(sqlProc, sqlArgs)
+			if not success:
+				return make_response(jsonify({"message": "Invalid verification token"}), 401)
+			
+			location_header = f"/users/{user_id}/images"
+			return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
+		except Exception as e:
+			abort(500, description=str(e))
 
 class SignIn(Resource):
-    def post(self):
-        
-        email = request.json("email")
-        password = request.json("password")
+	def post(self):
+		
+		email = request.json("email")
+		password = request.json("password")
 
-        if not email or not password:
-            abort(400, description="Missing email or password")
+		if not email or not password:
+			abort(400, description="Missing email or password")
 
 
-        sqlProc = 'getUserByEmail'
-        sqlArgs = [email]
-        try:      
-            user_data = db_access(sqlProc , sqlArgs)
-            if not user_data:
-                return make_response(jsonify({"message": "Invalid credentials"}), 401)
+		sqlProc = 'getUserByEmail'
+		sqlArgs = [email]
+		try:      
+			user_data = db_access(sqlProc , sqlArgs)
+			if not user_data:
+				return make_response(jsonify({"message": "Invalid credentials"}), 401)
 
-            stored_hash = user_data[0]["passwordHash"]
-            user_id = user_data[0]["id"]
+			stored_hash = user_data[0]["passwordHash"]
+			user_id = user_data[0]["id"]
 
-            if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
-                return make_response(jsonify({"message": "Invalid credentials"}), 401)
+			if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+				return make_response(jsonify({"message": "Invalid credentials"}), 401)
 
-            session["user_id"] = user_id
+			session["user_id"] = user_id
 
-            location_header = f"/users/{user_id}/images"
-            return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
+			location_header = f"/users/{user_id}/images"
+			return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
 
-        except Exception as e:
-            abort(500, description=str(e))
-            
+		except Exception as e:
+			abort(500, description=str(e))
+			
 api.add_resource(SignIn, "/signin")
 
 class SignOut(Resource):
-    def post(self):
-        '''Remove session data'''
-        session.pop("user_id", None)
-        return jsonify({"message": "Logged out successfully"}), 200
+	def post(self):
+		'''Remove session data'''
+		session.pop("user_id", None)
+		return jsonify({"message": "Logged out successfully"}), 200
 
 api.add_resource(SignOut , '/signout')
 
@@ -148,14 +178,14 @@ class UserImages(Resource):
 		return make_response(jsonify({'images': rows}), 200) # turn set into json and return it
 
 	def post(self, user_id):
-        # POST: Add a new image
+		# POST: Add a new image
 		
-        # Sample command line usage:
-        #
-        # curl -i -X POST -H "Content-Type: application/json"
-        #    -d '{"url": "https://en.wikipedia.org/wiki/Book#/media/File:Gutenberg_Bible,_Lenox_Copy,_New_York_Public_Library,_2009._Pic_01.jpg", "title": "Book", "desc":
-        #		  "picture of a book", "visibility": "public"}'
-        #         http://cs3103.cs.unb.ca:xxxxx/users/1234/images
+		# Sample command line usage:
+		#
+		# curl -i -X POST -H "Content-Type: application/json"
+		#    -d '{"url": "https://en.wikipedia.org/wiki/Book#/media/File:Gutenberg_Bible,_Lenox_Copy,_New_York_Public_Library,_2009._Pic_01.jpg", "title": "Book", "desc":
+		#		  "picture of a book", "visibility": "public"}'
+		#         http://cs3103.cs.unb.ca:xxxxx/users/1234/images
 		if "user_id" not in session or session["user_id"]!=user_id:
 			return make_response(jsonify({"message": "Unauthorized"}), 401)
 
@@ -233,7 +263,7 @@ class Image(Resource):
 		
 		img = row[0]
 		if img["visibility"] == "private":
-      
+	
 			if "user_id" not in session or session["user_id"]!=img["user_id"]:
 				return make_response(jsonify({"message": "Unauthorized"}), 401)
 
@@ -256,7 +286,7 @@ class Image(Resource):
 		return make_response(jsonify({"uri": uri}), 201)
 
 class Search(Resource):
-    # GET: Return all images with matching title/visibility (only shows private images of user who is signed in)
+	# GET: Return all images with matching title/visibility (only shows private images of user who is signed in)
 	#
 	# Example request: curl http://cs3103.cs.unb.ca:xxxxx/images/search/?title=Book&visibility=private
 	def get(self):
@@ -302,7 +332,7 @@ class Search(Resource):
 					imgs_visible.append(img)
 			else:
 				imgs_visible.append(img)
-    
+	
 		return make_response(jsonify({'images': imgs_visible}), 200) # turn set into json and return it
 
 class MostActive(Resource):
@@ -332,7 +362,7 @@ class CascadeDelete(Resource):
 			abort(500, message = e)
 		return make_response(jsonify({"success": success}), 200)
 
-    
+	
 ####################################################################################
 #
 # Identify/create endpoints and endpoint objects
