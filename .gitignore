@@ -3,3 +3,6 @@ __pycache__/
 
 # Specific files
 settings.py
+
+#Desktop Service Store files
+.DS_Store
