@@ -6,6 +6,9 @@ BEGIN
     IF tokenCount > 0 THEN
         DELETE FROM VerificationTokens WHERE userId = pUserId;
         INSERT INTO ValidatedEmails (userId) VALUES (pUserId);
+        SELECT 1 AS success;
+    ELSE
+        SELECT 0 AS success;
     END IF;
 END //
 DELIMITER ;

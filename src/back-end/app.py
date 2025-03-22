@@ -77,24 +77,29 @@ api.add_resource(VerifyStatic, '/verify')
 class Register(Resource):
 	def post(self):
 
-		email = request.json["email"]
-		password = request.json["password"]
-		if not email or not password:
-			abort(400, description="Missing email or password")
-
+		username = request.form.get("username")
+		email = request.form.get("email")
+		password = request.form.get("password")
+		if not username:
+			abort(400, description="Missing username")
+		if not email:
+			abort(400, description="Missing email")
+		if not password:
+			abort(400, description="Missing password")
+		
 		hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 		sqlProc = 'registerUser'
-		sqlArgs = [email, hashed_pw]
+		sqlArgs = [username, email, hashed_pw]
 
 		try:
 			verify_data = db_access(sqlProc , sqlArgs)
 		except Exception as e:
 			abort(500, description=str(e))
 
-		# TODO: registerUser/generateVerificationToken procedures need to return created user_id and verification token to use in the url sent to email
-		user_id = verify_data["userId"]
-		token = verify_data["token"]
-		verify_url = f"http://{settings.APP_HOST}:{settings.APP_HOST}/users/{user_id}/verify/{token}"
+		# registerUser/generateVerificationToken procedures return created user_id and verification token to use in the url sent to email
+		user_id = verify_data[0]["userId"]
+		token = verify_data[0]["token"]
+		verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
 
 		try:
 			send_verify_email(email, verify_url)
@@ -107,25 +112,30 @@ class Register(Resource):
 api.add_resource(Register, "/register")
 
 class Verify(Resource):
-	def post(self, user_id, token_id):
+	def get(self, user_id, token_id):
 		sqlProc = "verifyEmail"
 		sqlArgs = [user_id, token_id]
 
 		try:
-			success = db_access(sqlProc, sqlArgs)
-			if not success:
+			result = db_access(sqlProc, sqlArgs)
+			if result:
+				if result[0]["success"] == 1:
+					location_header = f"/users/{user_id}/images"
+					return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
 				return make_response(jsonify({"message": "Invalid verification token"}), 401)
+		
+			return make_response(jsonify({"message": "Unable to find token"}), 401)
 			
-			location_header = f"/users/{user_id}/images"
-			return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
+			
 		except Exception as e:
 			abort(500, description=str(e))
 
+api.add_resource(Verify, "/users/<int:user_id>/verify/<string:token_id>")
+
 class SignIn(Resource):
 	def post(self):
-		
-		email = request.json("email")
-		password = request.json("password")
+		email = request.form.get("email")
+		password = request.form.get("password")
 
 		if not email or not password:
 			abort(400, description="Missing email or password")

@@ -1,6 +1,7 @@
 import smtplib
 from smtplib import SMTPException
 from email.message import EmailMessage
+import settings
 
 def send_verify_email(recipient, url):
     msg = EmailMessage()
@@ -13,7 +14,9 @@ def send_verify_email(recipient, url):
 
     # Send the message via SMTP server
     try:
-        s = smtplib.SMTP('localhost')
+        s = smtplib.SMTP('smtp.gmail.com', 587)
+        s.starttls()
+        s.login(settings.EMAIL_VERIFY_ADDRESS, settings.EMAIL_KEY)
         s.send_message(msg)
         s.quit()
     except SMTPException as e:

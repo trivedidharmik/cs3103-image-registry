@@ -15,11 +15,12 @@ import settings
 # PUT - Id, Object, no return
 # DELETE - Id, no return
 def db_access(sqlProc, sqlArgs):
+    dbConnection = None
     try:
         dbConnection = pymysql.connect(
             host=settings.DB_HOST,
             user=settings.DB_USER,
-            password=settings.DB_PASSWORD,
+            password=settings.DB_PASSWD,
             database=settings.DB_DATABASE,
             charset='utf8mb4',
             cursorclass= pymysql.cursors.DictCursor)
@@ -31,7 +32,8 @@ def db_access(sqlProc, sqlArgs):
     except pymysql.MySQLError as e:
         raise Exception('Database Error:'+str(e))
     finally:
-        dbConnection.commit()
-        dbConnection.close()
+        if dbConnection:
+            dbConnection.commit()
+            dbConnection.close()
 
     return rows
