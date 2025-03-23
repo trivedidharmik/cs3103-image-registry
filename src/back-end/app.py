@@ -120,8 +120,10 @@ class Verify(Resource):
 			result = db_access(sqlProc, sqlArgs)
 			if result:
 				if result[0]["success"] == 1:
+					session["user_id"] = user_id
 					location_header = f"/users/{user_id}/images"
 					return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
+				
 				return make_response(jsonify({"message": "Invalid verification token"}), 401)
 		
 			return make_response(jsonify({"message": "Unable to find token"}), 401)
@@ -149,7 +151,7 @@ class SignIn(Resource):
 				return make_response(jsonify({"message": "Invalid credentials"}), 401)
 
 			stored_hash = user_data[0]["passwordHash"]
-			user_id = user_data[0]["id"]
+			user_id = user_data[0]["userId"]
 
 			if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
 				return make_response(jsonify({"message": "Invalid credentials"}), 401)
@@ -199,20 +201,18 @@ class UserImages(Resource):
 		if "user_id" not in session or session["user_id"]!=user_id:
 			return make_response(jsonify({"message": "Unauthorized"}), 401)
 
-		if not request.json:
-			abort(400) # bad request
-		if not 'url' in request.json or not 'title' in request.json or not 'visibility' in request.json:
+		# TODO: Determine how to separate file name from file extension when uploading, there wont be a second form entry for just the extension
+		fileName = request.form.get('fileName')
+		fileExtension = request.form.get('fileExtension')
+		title = request.form.get('title')
+		desc = request.form.get('desc')
+		visibility = request.form.get('visibility')
+
+		if not fileName or not fileExtension or not title or not visibility:
 			abort(400)
 
-		# The request object holds the ... wait for it ... client request!
-		# Pull the results out of the json request
-		url = request.json['url']
-		title = request.json['title']
-		desc = request.json['desc']
-		visibility = request.json['visibility']
-
 		sqlProc = 'insertImage'
-		sqlArgs = [user_id, url, title, desc, visibility]
+		sqlArgs = [user_id, fileName, fileExtension, title, desc, visibility]
 		try:
 			row = db_access(sqlProc, sqlArgs)
 		except Exception as e:
@@ -281,9 +281,9 @@ class Image(Resource):
 
 	def post(self, image_id):
 		# POST: Update a given image contents
-		title = request.json['title']
-		desc = request.json['desc']
-		visibility = request.json['visibility']
+		title = request.form.get('title')
+		desc = request.form.get('desc')
+		visibility = request.form.get('visibility')
 
 		sqlProc = "updateImageData"
 		sqlArgs = [image_id, title, desc, visibility]
