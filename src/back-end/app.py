@@ -69,6 +69,11 @@ class VerifyStatic(Resource):
 
 api.add_resource(VerifyStatic, '/verify')
 
+class signOutStatic(Resource):
+    def get(self):
+        return app.send_static_file('signout.html')
+
+api.add_resource(signOutStatic, '/signout')
 ####################################################################################
 #
 # Specific user endpoints
