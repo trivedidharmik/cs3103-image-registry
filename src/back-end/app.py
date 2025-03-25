@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from flask import Flask, jsonify, abort, request, make_response, session
+from flask import Flask, jsonify, abort, request, make_response, session, send_from_directory
 from flask_restful import Resource, Api
 from flask_session import Session
 import pymysql.cursors
@@ -17,8 +17,14 @@ from email_util import send_verify_email
 import settings # Our server and db settings, stored in settings.py
 import os
 
+
 app = Flask(__name__, static_folder="../front-end", static_url_path='/static')
-app = Flask(__name__, static_folder="../storage", static_url_path='/storage')
+
+# Serve static files from the storage folder
+@app.route('/storage/<path:filename>')
+def serve_image(filename):
+    return send_from_directory("../storage", filename)
+
 api = Api(app)
 
 app.secret_key = settings.SECRET_KEY
