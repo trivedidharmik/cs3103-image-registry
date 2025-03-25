@@ -70,16 +70,18 @@ class VerifyStatic(Resource):
 api.add_resource(VerifyStatic, '/verify')
 
 class signOutStatic(Resource):
-    def get(self):
-        return app.send_static_file('signout.html')
+	def get(self):
+		if "user_id" not in session:
+			return make_response(jsonify({"message": "Unable to sign out"}), 401)
+		return app.send_static_file('signout.html')
 
 api.add_resource(signOutStatic, '/signout')
 
 class landingPage(Resource):
-    def get(self):
-        if "user_id" not in session:
-            return make_response(jsonify({"message": "Unauthorized"}), 401)
-        return app.send_static_file("landing_page.html")
+	def get(self):
+		if "user_id" not in session:
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
+		return app.send_static_file("landing_page.html")
 
 api.add_resource(landingPage, '/home')
 
