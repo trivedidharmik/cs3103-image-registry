@@ -15,8 +15,10 @@ cgitb.enable()
 from db_util import db_access
 from email_util import send_verify_email
 import settings # Our server and db settings, stored in settings.py
+import os
 
 app = Flask(__name__, static_folder="../front-end", static_url_path='/static')
+app = Flask(__name__, static_folder="../storage", static_url_path='/storage')
 api = Api(app)
 
 app.secret_key = settings.SECRET_KEY
@@ -219,17 +221,27 @@ class UserImages(Resource):
 			return make_response(jsonify({"message": "Unauthorized"}), 401)
 
 		# TODO: Determine how to separate file name from file extension when uploading, there wont be a second form entry for just the extension
-		fileName = request.form.get('fileName')
-		fileExtension = request.form.get('fileExtension')
+		file = request.form.get('imageFile')
+		# fileName = request.form.get('fileName')
+		# fileExtension = request.form.get('fileExtension')
 		title = request.form.get('title')
 		desc = request.form.get('desc')
 		visibility = request.form.get('visibility')
 
-		if not fileName or not fileExtension or not title or not visibility:
-			abort(400)
+		if not title or not visibility or not file:
+			abort(400, description="Missing required fields")
+		
+		# Save the file to the storage directory
+		filename = file.filename
+		filename = filename.strip().replace(" ", "_")
+		filename = "".join(c for c in filename if c.isalnum() or c in ("_", "."))
 
+		file_extension = filename.split('.')[-1]
+		file_path = os.path.join('storage', filename)
+		file.save(file_path)
+	
 		sqlProc = 'insertImage'
-		sqlArgs = [user_id, fileName, fileExtension, title, desc, visibility]
+		sqlArgs = [user_id, filename, file_extension, title, desc, visibility]
 		try:
 			row = db_access(sqlProc, sqlArgs)
 		except Exception as e:
@@ -237,7 +249,7 @@ class UserImages(Resource):
 		# Look closely, Grasshopper: we just created a new resource, so we're
 		# returning the uri to it, based on the return value from the stored procedure.
 		# Yes, now would be a good time check out the procedure.
-		uri = request.base_url+'/'+str(row[0]['LAST_INSERT_ID()'])
+		uri = f"/images/{row[0]['LAST_INSERT_ID()']}"
 		return make_response(jsonify( { "uri" : uri } ), 201) # successful resource creation
 	
 	
