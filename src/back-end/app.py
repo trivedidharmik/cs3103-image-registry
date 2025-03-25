@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from flask import Flask, jsonify, abort, request, make_response, session, send_from_directory
+from flask import Flask, jsonify, abort, request, make_response, session, send_from_directory, render_template, redirect, url_for
 from flask_restful import Resource, Api
 from flask_session import Session
 import pymysql.cursors
@@ -93,13 +93,13 @@ class landingPage(Resource):
 
 api.add_resource(landingPage, '/home')
 
-class userHomePage(Resource):
-	def get(self):
-		if "user_id" not in session:
-			return make_response(jsonify({"message": "Unauthorized"}), 401)
-		return app.send_static_file("user_home.html")
+@app.route("/user_home")
+def user_home():
+    if "user_id" not in session:
+        return redirect(url_for('signin'))  # Redirect to sign-in page if user is not logged in
 
-api.add_resource(userHomePage, '/user_home')
+    user_id = session["user_id"]
+    return render_template("user_home.html", user_id=user_id)
 
 ####################################################################################
 #
