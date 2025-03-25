@@ -264,7 +264,7 @@ class UserImages(Resource):
 		# Look closely, Grasshopper: we just created a new resource, so we're
 		# returning the uri to it, based on the return value from the stored procedure.
 		# Yes, now would be a good time check out the procedure.
-		uri = f"/images/{row[0]['LAST_INSERT_ID()']}"
+		uri = f"/images/{row[0]['newImageId']}"
 		return make_response(jsonify( { "uri" : uri } ), 201) # successful resource creation
 	
 	
