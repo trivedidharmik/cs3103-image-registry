@@ -93,6 +93,14 @@ class landingPage(Resource):
 
 api.add_resource(landingPage, '/home')
 
+class userHomePage(Resource):
+	def get(self):
+		if "user_id" not in session:
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
+		return app.send_static_file("user_home.html")
+
+api.add_resource(userHomePage, '/user_home')
+
 ####################################################################################
 #
 # Specific user endpoints
