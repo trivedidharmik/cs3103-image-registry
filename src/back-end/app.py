@@ -74,6 +74,12 @@ class signOutStatic(Resource):
         return app.send_static_file('signout.html')
 
 api.add_resource(signOutStatic, '/signout')
+
+class landingPageStatic(Resource):
+    def get(self):
+        return app.send_static_file('landing_page.html')
+
+api.add_resource(landingPageStatic, '/home')
 ####################################################################################
 #
 # Specific user endpoints
@@ -163,7 +169,8 @@ class SignIn(Resource):
 
 			session["user_id"] = user_id
 
-			location_header = f"/users/{user_id}/images"
+			# location_header = f"/users/{user_id}/images"
+			location_header = "/home"
 			return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
 
 		except Exception as e:
