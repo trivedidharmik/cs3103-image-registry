@@ -18,7 +18,7 @@ import settings # Our server and db settings, stored in settings.py
 import os
 
 
-app = Flask(__name__, static_folder="../front-end", static_url_path='/static')
+app = Flask(__name__, static_folder="../front-end", static_url_path='/static', template_folder="../front-end")
 
 # Serve static files from the storage folder
 @app.route('/storage/<path:filename>')
