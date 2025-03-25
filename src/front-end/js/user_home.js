@@ -36,7 +36,7 @@ window.onload = function () {
   uploadForm.addEventListener("submit", function (e) {
     e.preventDefault();
     const formData = new FormData(uploadForm);
-    const userId = document.getElementById("userId").value; // Make sure the user ID is correctly passed
+    const userId = document.getElementById("userId").value;
 
     fetch(`/users/${userId}/images`, {
       method: "POST",

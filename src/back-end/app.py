@@ -17,7 +17,8 @@ from email_util import send_verify_email
 import settings # Our server and db settings, stored in settings.py
 import os
 
-
+if not os.path.exists('storage'):
+    os.makedirs('storage')
 app = Flask(__name__, static_folder="../front-end", static_url_path='/static', template_folder="../front-end")
 
 # Serve static files from the storage folder
@@ -235,7 +236,7 @@ class UserImages(Resource):
 			return make_response(jsonify({"message": "Unauthorized"}), 401)
 
 		# TODO: Determine how to separate file name from file extension when uploading, there wont be a second form entry for just the extension
-		file = request.form.get('imageFile')
+		file = request.files.get('imageFile')
 		# fileName = request.form.get('fileName')
 		# fileExtension = request.form.get('fileExtension')
 		title = request.form.get('title')
