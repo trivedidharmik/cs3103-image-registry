@@ -6,3 +6,5 @@ settings.py
 
 #Desktop Service Store files
 .DS_Store
+
+storage/
