@@ -19,10 +19,12 @@ import os
 
 app = Flask(__name__, static_folder="../front-end", static_url_path='/static', template_folder="../front-end")
 
-# Serve static files from the storage folder
 @app.route('/storage/<path:filename>')
 def serve_image(filename):
-	return send_from_directory("../storage", filename)
+    storage_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', '..', 'storage') 
+    )
+    return send_from_directory(storage_dir, filename)
 
 api = Api(app)
 
@@ -251,8 +253,7 @@ class UserImages(Resource):
 
 		file_extension = filename.split('.')[-1]
 
-		storage_dir = os.path.abspath(
-		os.path.join(os.path.dirname(__file__), '..', 'storage'))
+		storage_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage'))
 		file_path = os.path.join(storage_dir, filename)
 
 		# Ensure the storage directory exists
