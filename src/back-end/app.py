@@ -157,7 +157,10 @@ class Register(Resource):
 		token = verify_data[0]["token"]
 		# Ensure token is a string (decode if it's bytes)
 		if isinstance(token, bytes):
-			token = token.decode('utf-8')
+			try:
+				token = token.decode('utf-8') 
+			except UnicodeDecodeError:
+				token = token.hex()
 		verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
 
 		try:
