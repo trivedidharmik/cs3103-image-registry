@@ -16,14 +16,37 @@ from db_util import db_access
 from email_util import send_verify_email
 import settings # Our server and db settings, stored in settings.py
 import os
+import uuid
 
 app = Flask(__name__, static_folder="../front-end", static_url_path='/static', template_folder="../front-end")
 
 @app.route('/storage/<path:filename>')
 def serve_image(filename):
-    storage_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), '..', '..', 'storage') 
-    )
+    # Get image metadata from the database
+    sqlProc = 'getImageByFileName'
+    sqlArgs = [filename]
+    try:
+        image_data = db_access(sqlProc, sqlArgs)
+    except Exception as e:
+        abort(404, description="Image not found")
+
+    if not image_data:
+        abort(404, description="Image not found")
+
+    image = image_data[0]
+    visibility = image["visibility"]
+    owner_id = image["userId"]
+
+    # Public image: allow access to anyone
+    if visibility == "public":
+        storage_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage'))
+        return send_from_directory(storage_dir, filename)
+
+    # Private image: require logged-in user and ownership
+    if "user_id" not in session or session["user_id"] != owner_id:
+        abort(403, description="Unauthorized access to private image")
+
+    storage_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage'))
     return send_from_directory(storage_dir, filename)
 
 api = Api(app)
@@ -225,54 +248,56 @@ class UserImages(Resource):
 
 	def post(self, user_id):
 		# POST: Add a new image
-		
-		# Sample command line usage:
-		#
-		# curl -i -X POST -H "Content-Type: application/json"
-		#    -d '{"url": "https://en.wikipedia.org/wiki/Book#/media/File:Gutenberg_Bible,_Lenox_Copy,_New_York_Public_Library,_2009._Pic_01.jpg", "title": "Book", "desc":
-		#		  "picture of a book", "visibility": "public"}'
-		#         http://cs3103.cs.unb.ca:xxxxx/users/1234/images
-		if "user_id" not in session or session["user_id"]!=user_id:
+		if "user_id" not in session or session["user_id"] != user_id:
 			return make_response(jsonify({"message": "Unauthorized"}), 401)
 
-		# TODO: Determine how to separate file name from file extension when uploading, there wont be a second form entry for just the extension
 		file = request.files.get('imageFile')
-		# fileName = request.form.get('fileName')
-		# fileExtension = request.form.get('fileExtension')
 		title = request.form.get('title')
 		desc = request.form.get('desc')
 		visibility = request.form.get('visibility')
 
 		if not title or not visibility or not file:
 			abort(400, description="Missing required fields")
+
+		# Generate unique filename using UUID
+		original_filename = file.filename
 		
-		# Save the file to the storage directory
-		filename = file.filename
-		filename = filename.strip().replace(" ", "_")
-		filename = "".join(c for c in filename if c.isalnum() or c in ("_", "."))
+		# Get file extension (safely handle files without extensions)
+		file_extension = original_filename.split('.')[-1] if '.' in original_filename else ''
+		
+		# Create UUID-based filename
+		unique_id = uuid.uuid4().hex  # Generates 32-char string like 'd7a5e8c4b3...'
+		new_filename = f"{unique_id}.{file_extension}" if file_extension else unique_id
 
-		file_extension = filename.split('.')[-1]
+		# Save to storage
+		storage_dir = os.path.abspath(
+			os.path.join(os.path.dirname(__file__), '..', '..', 'storage')
+		)
+		file_path = os.path.join(storage_dir, new_filename)
 
-		storage_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage'))
-		file_path = os.path.join(storage_dir, filename)
-
-		# Ensure the storage directory exists
+		# Ensure storage directory exists
 		if not os.path.exists(storage_dir):
 			os.makedirs(storage_dir, exist_ok=True)
-		file.save(file_path)
-	
+		
+		try:
+			file.save(file_path)
+		except Exception as e:
+			abort(500, description=f"Failed to save file: {str(e)}")
+
+		# Store in database
 		sqlProc = 'insertImage'
-		sqlArgs = [user_id, filename, file_extension, title, desc, visibility]
+		sqlArgs = [user_id, new_filename, file_extension, title, desc, visibility]
+		
 		try:
 			row = db_access(sqlProc, sqlArgs)
 		except Exception as e:
-			abort(500, message = e) # server error
-		# Look closely, Grasshopper: we just created a new resource, so we're
-		# returning the uri to it, based on the return value from the stored procedure.
-		# Yes, now would be a good time check out the procedure.
+			# Clean up the saved file if DB insert fails
+			if os.path.exists(file_path):
+				os.remove(file_path)
+			abort(500, message=str(e))
+
 		uri = f"/images/{row[0]['newImageId']}"
-		return make_response(jsonify( { "uri" : uri } ), 201) # successful resource creation
-	
+		return make_response(jsonify({"uri": uri}), 201)
 	
 	def delete(self, user_id):
 		# DELETE: Delete identified image
