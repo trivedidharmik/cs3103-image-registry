@@ -26,14 +26,14 @@ window.onload = function () {
               <h5 class="card-title">${image.title}</h5>
               <p class="card-text">${image.description}</p>
               <span class="badge bg-${
-                image.visibility === "public" ? "success" : "warning"
-              }">${image.visibility}</span>
+                image.isVisible === "public" ? "success" : "warning"
+              }">${image.isVisible}</span>
               <div class="mt-2">
                 <button class="btn btn-sm btn-warning edit-btn" data-image-id="${
-                  image.id
+                  image.imageId
                 }">Edit</button>
                 <button class="btn btn-sm btn-danger delete-btn" data-image-id="${
-                  image.id
+                  image.imageId
                 }">Delete</button>
               </div>
             </div>
