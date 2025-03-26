@@ -34,7 +34,7 @@ def serve_image(filename):
         abort(404, description="Image not found")
 
     image = image_data[0]
-    visibility = image["visibility"]
+    visibility = image["isVisible"]
     owner_id = image["userId"]
 
     # Public image: allow access to anyone
@@ -254,9 +254,9 @@ class UserImages(Resource):
 		file = request.files.get('imageFile')
 		title = request.form.get('title')
 		desc = request.form.get('desc')
-		visibility = request.form.get('visibility')
+		isVisible = request.form.get('isVisible')
 
-		if not title or not visibility or not file:
+		if not title or not isVisible or not file:
 			abort(400, description="Missing required fields")
 
 		# Generate unique filename using UUID
@@ -286,7 +286,7 @@ class UserImages(Resource):
 
 		# Store in database
 		sqlProc = 'insertImage'
-		sqlArgs = [user_id, new_filename, file_extension, title, desc, visibility]
+		sqlArgs = [user_id, new_filename, file_extension, title, desc, isVisible]
 		
 		try:
 			row = db_access(sqlProc, sqlArgs)
@@ -347,7 +347,7 @@ class Image(Resource):
 			abort(500, message = e)
 		
 		img = row[0]
-		if img["visibility"] == "private":
+		if img["isVisible"] == "private":
 	
 			if "user_id" not in session or session["user_id"]!=img["user_id"]:
 				return make_response(jsonify({"message": "Unauthorized"}), 401)
@@ -358,7 +358,7 @@ class Image(Resource):
 		# POST: Update a given image contents
 		title = request.form.get('title')
 		desc = request.form.get('desc')
-		visibility = request.form.get('visibility')
+		isVisible = request.form.get('isVisible')
 		# Verify ownership
 		sqlProc = "getImageOwner"
 		sqlArgs = [image_id]
@@ -370,7 +370,7 @@ class Image(Resource):
 			abort(500, description=str(e))
 
 		sqlProc = "updateImageData"
-		sqlArgs = [image_id, title, desc, visibility]
+		sqlArgs = [image_id, title, desc, isVisible]
 		try:
 			db_access(sqlProc, sqlArgs)
 			return make_response(jsonify({"message": "Image updated successfully"}), 200)
@@ -396,8 +396,8 @@ class Search(Resource):
 			except Exception as e:
 				abort(500, message = e) # server error
 
-		if "visibility" in request.json:
-			visibility = request.json["visibility"]
+		if "isVisible" in request.json:
+			visibility = request.json["isVisible"]
 			sqlProc = 'filterImagesByVisibility'
 			sqlArgs = [visibility]
 			try:
