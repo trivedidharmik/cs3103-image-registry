@@ -155,6 +155,9 @@ class Register(Resource):
 		# registerUser/generateVerificationToken procedures return created user_id and verification token to use in the url sent to email
 		user_id = verify_data[0]["userId"]
 		token = verify_data[0]["token"]
+		# Ensure token is a string (decode if it's bytes)
+		if isinstance(token, bytes):
+			token = token.decode('utf-8')
 		verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
 
 		try:
@@ -208,6 +211,13 @@ class SignIn(Resource):
 
 			stored_hash = user_data[0]["passwordHash"]
 			user_id = user_data[0]["userId"]
+			# Check if email is verified (exists in ValidatedEmails)
+			check_verified_proc = 'checkEmailVerified'
+			check_verified_args = [user_id]
+			verification_result = db_access(check_verified_proc, check_verified_args)
+			
+			if not verification_result:
+				return make_response(jsonify({"message": "Email not verified"}), 401)
 
 			if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
 				return make_response(jsonify({"message": "Invalid credentials"}), 401)
