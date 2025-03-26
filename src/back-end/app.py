@@ -17,14 +17,12 @@ from email_util import send_verify_email
 import settings # Our server and db settings, stored in settings.py
 import os
 
-if not os.path.exists('storage'):
-    os.makedirs('storage')
 app = Flask(__name__, static_folder="../front-end", static_url_path='/static', template_folder="../front-end")
 
 # Serve static files from the storage folder
 @app.route('/storage/<path:filename>')
 def serve_image(filename):
-    return send_from_directory("../storage", filename)
+	return send_from_directory("../storage", filename)
 
 api = Api(app)
 
@@ -96,11 +94,11 @@ api.add_resource(landingPage, '/home')
 
 @app.route("/user_home")
 def user_home():
-    if "user_id" not in session:
-        return redirect(url_for('signin'))  # Redirect to sign-in page if user is not logged in
+	if "user_id" not in session:
+		return redirect(url_for('signin'))  # Redirect to sign-in page if user is not logged in
 
-    user_id = session["user_id"]
-    return render_template("user_home.html", user_id=user_id)
+	user_id = session["user_id"]
+	return render_template("user_home.html", user_id=user_id)
 
 ####################################################################################
 #
@@ -252,7 +250,14 @@ class UserImages(Resource):
 		filename = "".join(c for c in filename if c.isalnum() or c in ("_", "."))
 
 		file_extension = filename.split('.')[-1]
-		file_path = os.path.join('storage', filename)
+
+		storage_dir = os.path.abspath(
+		os.path.join(os.path.dirname(__file__), '..', 'storage'))
+		file_path = os.path.join(storage_dir, filename)
+
+		# Ensure the storage directory exists
+		if not os.path.exists(storage_dir):
+			os.makedirs(storage_dir, exist_ok=True)
 		file.save(file_path)
 	
 		sqlProc = 'insertImage'
