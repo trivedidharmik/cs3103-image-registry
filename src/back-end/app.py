@@ -359,16 +359,23 @@ class Image(Resource):
 		title = request.form.get('title')
 		desc = request.form.get('desc')
 		visibility = request.form.get('visibility')
+		# Verify ownership
+		sqlProc = "getImageOwner"
+		sqlArgs = [image_id]
+		try:
+			owner_data = db_access(sqlProc, sqlArgs)
+			if not owner_data or owner_data[0]["userId"] != session["user_id"]:
+				abort(403, description="Unauthorized to edit this image")
+		except Exception as e:
+			abort(500, description=str(e))
 
 		sqlProc = "updateImageData"
 		sqlArgs = [image_id, title, desc, visibility]
-
 		try:
-			row = db_access(sqlProc, sqlArgs)
+			db_access(sqlProc, sqlArgs)
+			return make_response(jsonify({"message": "Image updated successfully"}), 200)
 		except Exception as e:
-			abort(500, message = e)
-		uri = request.base_url+'/'+str(row[0]['LAST_INSERT_ID()'])
-		return make_response(jsonify({"uri": uri}), 201)
+			abort(500, description=str(e))
 
 class Search(Resource):
 	# GET: Return all images with matching title/visibility (only shows private images of user who is signed in)
