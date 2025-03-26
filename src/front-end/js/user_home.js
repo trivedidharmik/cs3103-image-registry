@@ -16,7 +16,7 @@ window.onload = function () {
         imageCard.classList.add("col-md-4", "mb-4");
         imageCard.innerHTML = `
         <div class="card shadow-sm h-100">
-          <img src="/storage/${image.file_name}" class="card-img-top" alt="${image.title}">
+          <img src="/storage/${image.fileName}" class="card-img-top" alt="${image.title}">
           <div class="card-body">
             <h5 class="card-title">${image.title}</h5>
             <p class="card-text">${image.description}</p>
