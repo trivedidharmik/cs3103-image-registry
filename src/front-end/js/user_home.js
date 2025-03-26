@@ -129,7 +129,7 @@ function handleEdit(e) {
                   name="desc" rows="2">${currentDesc}</textarea>
       </div>
       <div class="mb-2">
-        <select class="form-select" name="visibility">
+        <select class="form-select" name="isVisible">
           <option value="public" ${
             currentVisibility === "public" ? "selected" : ""
           }>Public</option>
