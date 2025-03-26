@@ -20,7 +20,7 @@ window.onload = function () {
           <div class="card-body">
             <h5 class="card-title">${image.title}</h5>
             <p class="card-text">${image.description}</p>
-            <span class="badge bg-success">${image.visibility}</span>
+            <span class="badge bg-success">${image.isVisible}</span>
           </div>
         </div>
       `;
