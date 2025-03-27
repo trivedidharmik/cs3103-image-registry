@@ -121,9 +121,9 @@ api.add_resource(landingPage, '/home')
 def user_home():
 	if "user_id" not in session:
 		return redirect(url_for('signin'))  # Redirect to sign-in page if user is not logged in
-
+	is_admin = session.get("is_admin" , False)
 	user_id = session["user_id"]
-	return render_template("user_home.html", user_id=user_id)
+	return render_template("user_home.html",is_admin = is_admin ,user_id=user_id)
 
 ####################################################################################
 #
@@ -395,20 +395,22 @@ class Search(Resource):
 	#
 	# Example request: curl http://cs3103.cs.unb.ca:xxxxx/images/search/?title=Book&visibility=private
 	def get(self):
-
 		if not request.json:
 			abort(400)
-		
-		# Need to search by either title, visibility or both
+
+		# Initialize them to None first:
+		title_rows = None
+		visibility_rows = None
+
 		if "title" in request.json:
 			title = request.json["title"]
 			sqlProc = 'searchImagesByTitle'
-			sqlArgs = [title] # might need trailing , after title in args
+			sqlArgs = [title]
 			try:
 				title_rows = db_access(sqlProc, sqlArgs)
 			except Exception as e:
-				abort(500, message = e) # server error
-
+				abort(500, message = e)
+			
 		if "isVisible" in request.json:
 			visibility = request.json["isVisible"]
 			sqlProc = 'filterImagesByVisibility'
@@ -416,20 +418,20 @@ class Search(Resource):
 			try:
 				visibility_rows = db_access(sqlProc, sqlArgs)
 			except Exception as e:
-				abort(500, message = e) # server error
-		
-		if title_rows == None and visibility_rows == None:
+				abort(500, message = e)
+
+		if title_rows is None and visibility_rows is None:
 			abort(400)
-		
-		if visibility_rows == None:
+
+		if visibility_rows is None:
 			rows = title_rows
-		
-		elif title_rows == None:
+		elif title_rows is None:
 			rows = visibility_rows
-		
-		# Searching by title and visibility, so take only the elements that exist in both
 		else:
+			# Intersection logic
 			rows = list(set(title_rows) & set(visibility_rows))
+
+    # Filter private images for non-owners
 		imgs_visible = []
 		for img in rows:
 			if img["isVisible"] == "private":
@@ -437,8 +439,8 @@ class Search(Resource):
 					imgs_visible.append(img)
 			else:
 				imgs_visible.append(img)
-	
-		return make_response(jsonify({'images': imgs_visible}), 200) # turn set into json and return it
+
+		return make_response(jsonify({'images': imgs_visible}), 200)
 
 class MostActive(Resource):
 	def get(self):
