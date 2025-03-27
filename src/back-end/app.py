@@ -434,7 +434,7 @@ class Search(Resource):
     # Filter private images for non-owners
 		imgs_visible = []
 		for img in rows:
-			if img["isVisible"] == "private":
+			if img["visibility"] == "private":
 				if "user_id" not in session or session["user_id"]==img["user_id"]:
 					imgs_visible.append(img)
 			else:
