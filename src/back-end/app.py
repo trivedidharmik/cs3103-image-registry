@@ -432,7 +432,7 @@ class Search(Resource):
 			rows = list(set(title_rows) & set(visibility_rows))
 		imgs_visible = []
 		for img in rows:
-			if img["visibility"] == "private":
+			if img["isVisible"] == "private":
 				if "user_id" not in session or session["user_id"]==img["user_id"]:
 					imgs_visible.append(img)
 			else:
