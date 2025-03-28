@@ -2,6 +2,12 @@
 window.onload = function () {
   const userId = document.getElementById("userId").value;
 
+  fetch(`/users/${userId}/image-count`)
+    .then((response) => response.json())
+    .then((data) => {
+      document.getElementById("imageCount").textContent = data.count;
+    });
+
   // Load images
   fetch(`/users/${userId}/images`, {
     method: "GET",
@@ -172,5 +178,57 @@ function handleEditSubmit(e) {
         }
       })
       .catch((error) => console.error("Update error:", error));
+  }
+}
+
+document.getElementById("profileForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+
+  const updateData = {
+    newUsername: document.getElementById("newUsername").value,
+    newEmail: document.getElementById("newEmail").value,
+    newPassword: document.getElementById("newPassword").value,
+    currentPassword: document.getElementById("currentPassword").value,
+  };
+
+  fetch(`/users/${userId}/update`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(updateData),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        alert("Profile updated successfully!");
+        if (data.requiresVerification) {
+          alert("Verification email sent to new address");
+        }
+        window.location.reload();
+      } else {
+        showFormErrors(data.errors);
+      }
+    })
+    .catch((error) => console.error("Update error:", error));
+});
+
+function showFormErrors(errors) {
+  // Reset feedback
+  document
+    .querySelectorAll(".is-invalid")
+    .forEach((el) => el.classList.remove("is-invalid"));
+  document
+    .querySelectorAll(".invalid-feedback")
+    .forEach((el) => (el.textContent = ""));
+
+  // Show new errors
+  for (const [field, message] of Object.entries(errors)) {
+    const input = document.getElementById(field);
+    const feedback = document.getElementById(`${field}Feedback`);
+    if (input && feedback) {
+      input.classList.add("is-invalid");
+      feedback.textContent = message;
+    }
   }
 }

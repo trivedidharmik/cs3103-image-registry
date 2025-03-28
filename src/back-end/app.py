@@ -134,11 +134,23 @@ def landing_page():
 
 @app.route("/user_home")
 def user_home():
-	if "user_id" not in session:
-		return redirect(url_for('signin'))  # Redirect to sign-in page if user is not logged in
-	is_admin = session.get("is_admin" , False)
-	user_id = session["user_id"]
-	return render_template("user_home.html",is_admin = is_admin ,user_id=user_id)
+    if "user_id" not in session:
+        return redirect(url_for('signin'))
+    
+    # Get user details
+    user_data = db_access('getUserById', [session["user_id"]])
+    if not user_data:
+        abort(404, description="User not found")
+    
+    user = user_data[0]
+    return render_template(
+        "user_home.html",
+        is_admin=session.get("is_admin", False),
+        user_id=session["user_id"],
+        username=user['username'],
+        email=user['email']
+    )
+
 
 ####################################################################################
 #
@@ -259,6 +271,63 @@ class SignOut(Resource):
 		return jsonify({"message": "Logged out successfully"}), 200
 
 api.add_resource(SignOut , '/signout')
+
+class UserUpdate(Resource):
+    def post(self, user_id):
+        if "user_id" not in session or session["user_id"] != user_id:
+            return make_response(jsonify({"message": "Unauthorized"}), 401)
+        
+        data = request.get_json()
+        errors = {}
+        
+        try:
+            # Verify current password
+            user_data = db_access('getUserById', [user_id])
+            if not bcrypt.checkpw(data['currentPassword'].encode('utf-8'), 
+                                user_data[0]['passwordHash'].encode('utf-8')):
+                errors['currentPassword'] = "Incorrect password"
+                return jsonify(success=False, errors=errors)
+            
+            update_args = [user_id]
+            proc = 'updateUser'
+            
+            # Check username availability
+            if data['newUsername'] != user_data[0]['username']:
+                existing = db_access('getUserByUsername', [data['newUsername']])
+                if existing:
+                    errors['newUsername'] = "Username not available"
+                    return jsonify(success=False, errors=errors)
+                update_args.append(data['newUsername'])
+            else:
+                update_args.append(None)
+            
+            # Handle email change
+            if data['newEmail'] != user_data[0]['email']:
+                update_args.append(data['newEmail'])
+                # Generate new verification token
+                token_proc = db_access('generateVerificationToken', [user_id])
+                token = token_proc[0]['token']
+                verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
+                send_verify_email(data['newEmail'], verify_url)
+            else:
+                update_args.append(None)
+            
+            # Handle password change
+            if data['newPassword']:
+                hashed_pw = bcrypt.hashpw(data['newPassword'].encode('utf-8'), 
+                                        bcrypt.gensalt()).decode('utf-8')
+                update_args.append(hashed_pw)
+            else:
+                update_args.append(None)
+            
+            db_access(proc, update_args)
+            return jsonify(
+                success=True,
+                requiresVerification='newEmail' in data and data['newEmail'] != user_data[0]['email']
+            )
+            
+        except Exception as e:
+            return jsonify(success=False, errors={'general': str(e)})
 
 class UserImages(Resource):
 	
@@ -472,6 +541,7 @@ api.add_resource(Image, '/images/<int:image_id>')
 api.add_resource(Search, '/images/search')
 api.add_resource(MostActive, '/analytics/most-active')
 api.add_resource(CascadeDelete, '/admin/users/<int:user_id>')
+api.add_resource(UserUpdate, '/users/<int:user_id>/update')
 
 
 #############################################################################
