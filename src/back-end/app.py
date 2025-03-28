@@ -109,13 +109,28 @@ class signOutStatic(Resource):
 
 api.add_resource(signOutStatic, '/signout')
 
-class landingPage(Resource):
-	def get(self):
-		if "user_id" not in session:
-			return make_response(jsonify({"message": "Unauthorized"}), 401)
-		return app.send_static_file("landing_page.html")
-
-api.add_resource(landingPage, '/home')
+@app.route('/home')
+def landing_page():
+    if "user_id" not in session:
+        return redirect(url_for('signin'))
+    
+    keyword = request.args.get('q')  # Get search term
+    if keyword:
+        sqlProc = 'searchImages'
+        sqlArgs = [keyword]
+    else:
+        sqlProc = 'filterImagesByVisibility'
+        sqlArgs = ['public']
+    
+    try:
+        images = db_access(sqlProc, sqlArgs)
+    except Exception as e:
+        abort(500, description=str(e))
+    
+    return render_template(
+        "landing_page.html",
+        images=images,
+        is_admin=session.get("is_admin", False))
 
 @app.route("/user_home")
 def user_home():
@@ -391,56 +406,21 @@ class Image(Resource):
 			abort(500, description=str(e))
 
 class Search(Resource):
-	# GET: Return all images with matching title/visibility (only shows private images of user who is signed in)
-	#
-	# Example request: curl http://cs3103.cs.unb.ca:xxxxx/images/search/?title=Book&visibility=private
-	def get(self):
-		if not request.json:
-			abort(400)
+    def get(self):
+        # Get search query from URL parameters
+        keyword = request.args.get('q')
+        if not keyword:
+            abort(400, description="Missing search query")
 
-		# Initialize them to None first:
-		title_rows = None
-		visibility_rows = None
-
-		if "title" in request.json:
-			title = request.json["title"]
-			sqlProc = 'searchImagesByTitle'
-			sqlArgs = [title]
-			try:
-				title_rows = db_access(sqlProc, sqlArgs)
-			except Exception as e:
-				abort(500, message = e)
-			
-		if "isVisible" in request.json:
-			visibility = request.json["isVisible"]
-			sqlProc = 'filterImagesByVisibility'
-			sqlArgs = [visibility]
-			try:
-				visibility_rows = db_access(sqlProc, sqlArgs)
-			except Exception as e:
-				abort(500, message = e)
-
-		if title_rows is None and visibility_rows is None:
-			abort(400)
-
-		if visibility_rows is None:
-			rows = title_rows
-		elif title_rows is None:
-			rows = visibility_rows
-		else:
-			# Intersection logic
-			rows = list(set(title_rows) & set(visibility_rows))
-
-    # Filter private images for non-owners
-		imgs_visible = []
-		for img in rows:
-			if img["visibility"] == "private":
-				if "user_id" not in session or session["user_id"]==img["user_id"]:
-					imgs_visible.append(img)
-			else:
-				imgs_visible.append(img)
-
-		return make_response(jsonify({'images': imgs_visible}), 200)
+        sqlProc = 'searchImagesByTitle'
+        sqlArgs = [keyword]
+        try:
+            rows = db_access(sqlProc, sqlArgs)
+        except Exception as e:
+            abort(500, description=str(e))
+        
+        # Return results directly (stored procedure ensures visibility is public)
+        return make_response(jsonify({'images': rows}), 200)	
 
 class MostActive(Resource):
 	def get(self):
