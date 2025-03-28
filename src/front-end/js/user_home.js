@@ -2,6 +2,15 @@
 window.onload = function () {
   const userId = document.getElementById("userId").value;
 
+  // Initialize Bootstrap tooltips
+  const tooltipTriggerList = [].slice.call(
+    document.querySelectorAll('[data-bs-toggle="tooltip"]')
+  );
+  tooltipTriggerList.forEach((tooltipTriggerEl) => {
+    new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+
+  // Load image count
   fetch(`/users/${userId}/image-count`)
     .then((response) => response.json())
     .then((data) => {
@@ -18,7 +27,7 @@ window.onload = function () {
     .then((response) => response.json())
     .then((data) => {
       const imagesContainer = document.getElementById("imagesContainer");
-      imagesContainer.innerHTML = ""; // Clear existing content
+      imagesContainer.innerHTML = "";
 
       data.images.forEach((image) => {
         const imageCard = document.createElement("div");
@@ -27,24 +36,38 @@ window.onload = function () {
           <div class="card shadow-sm h-100">
             <img src="/storage/${image.fileName}" class="card-img-top" alt="${
           image.title
+        }" data-bs-toggle="tooltip" title="${
+          image.description || "No description"
         }">
             <div class="card-body">
               <h5 class="card-title">${image.title}</h5>
-              <p class="card-text">${image.description}</p>
+              <p class="card-text">${image.description || ""}</p>
               <span class="badge bg-${
                 image.isVisible === "public" ? "success" : "warning"
               }">${image.isVisible}</span>
               <div class="mt-2">
                 <button class="btn btn-sm btn-warning edit-btn" data-image-id="${
                   image.imageId
-                }">Edit</button>
+                }" data-bs-toggle="tooltip" title="Edit image">
+                  <i class="bi bi-pencil"></i>
+                </button>
                 <button class="btn btn-sm btn-danger delete-btn" data-image-id="${
                   image.imageId
-                }">Delete</button>
+                }" data-bs-toggle="tooltip" title="Delete image">
+                  <i class="bi bi-trash"></i>
+                </button>
               </div>
             </div>
           </div>`;
         imagesContainer.appendChild(imageCard);
+      });
+
+      // Re-initialize tooltips for new elements
+      const imageTooltips = [].slice.call(
+        document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      );
+      imageTooltips.forEach((tooltipEl) => {
+        new bootstrap.Tooltip(tooltipEl);
       });
 
       // Add delete handlers
@@ -87,13 +110,52 @@ window.onload = function () {
       });
   });
 
+  // Profile form handling
+  document
+    .getElementById("profileForm")
+    .addEventListener("submit", function (e) {
+      e.preventDefault();
+      const userId = document.getElementById("userId").value;
+
+      const updateData = {
+        newUsername: document.getElementById("newUsername").value,
+        newEmail: document.getElementById("newEmail").value,
+        newPassword: document.getElementById("newPassword").value,
+        currentPassword: document.getElementById("currentPassword").value,
+      };
+
+      fetch(`/users/${userId}/update`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.success) {
+            const modal = bootstrap.Modal.getInstance(
+              document.getElementById("profileModal")
+            );
+            if (modal) modal.hide();
+            if (data.requiresVerification) {
+              alert("Verification email sent to new address");
+            }
+            window.location.reload();
+          } else {
+            showFormErrors(data.errors);
+          }
+        })
+        .catch((error) => console.error("Update error:", error));
+    });
+
   // Handle edit form submissions
   document.addEventListener("submit", handleEditSubmit);
 };
 
 // Delete image handler
 function handleDelete(e) {
-  const imageId = e.target.dataset.imageId;
+  const imageId = e.target.closest("button").dataset.imageId;
   const userId = document.getElementById("userId").value;
 
   if (confirm("Are you sure you want to delete this image?")) {
@@ -117,7 +179,7 @@ function handleDelete(e) {
 
 // Edit button handler
 function handleEdit(e) {
-  const imageId = e.target.dataset.imageId;
+  const imageId = e.target.closest("button").dataset.imageId;
   const cardBody = e.target.closest(".card-body");
   const currentTitle = cardBody.querySelector(".card-title").textContent;
   const currentDesc = cardBody.querySelector(".card-text").textContent;
@@ -181,40 +243,8 @@ function handleEditSubmit(e) {
   }
 }
 
-document.getElementById("profileForm").addEventListener("submit", function (e) {
-  e.preventDefault();
-
-  const updateData = {
-    newUsername: document.getElementById("newUsername").value,
-    newEmail: document.getElementById("newEmail").value,
-    newPassword: document.getElementById("newPassword").value,
-    currentPassword: document.getElementById("currentPassword").value,
-  };
-
-  fetch(`/users/${userId}/update`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(updateData),
-  })
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.success) {
-        alert("Profile updated successfully!");
-        if (data.requiresVerification) {
-          alert("Verification email sent to new address");
-        }
-        window.location.reload();
-      } else {
-        showFormErrors(data.errors);
-      }
-    })
-    .catch((error) => console.error("Update error:", error));
-});
-
+// Form error handling
 function showFormErrors(errors) {
-  // Reset feedback
   document
     .querySelectorAll(".is-invalid")
     .forEach((el) => el.classList.remove("is-invalid"));
@@ -222,7 +252,6 @@ function showFormErrors(errors) {
     .querySelectorAll(".invalid-feedback")
     .forEach((el) => (el.textContent = ""));
 
-  // Show new errors
   for (const [field, message] of Object.entries(errors)) {
     const input = document.getElementById(field);
     const feedback = document.getElementById(`${field}Feedback`);
@@ -232,3 +261,19 @@ function showFormErrors(errors) {
     }
   }
 }
+
+// Modal handling
+document.addEventListener("DOMContentLoaded", function () {
+  // Reset form on modal close
+  const profileModal = document.getElementById("profileModal");
+  if (profileModal) {
+    profileModal.addEventListener("hidden.bs.modal", () => {
+      document.getElementById("newUsername").value =
+        document.getElementById("usernameSpan").textContent;
+      document.getElementById("newEmail").value = "{{ email }}";
+      document.getElementById("newPassword").value = "";
+      document.getElementById("currentPassword").value = "";
+      showFormErrors({});
+    });
+  }
+});
