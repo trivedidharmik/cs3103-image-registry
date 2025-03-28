@@ -242,7 +242,7 @@ class SignIn(Resource):
 
 			session["user_id"] = user_id
 			session["is_admin"] = user_data[0]["isAdmin"] == 1
-			
+
 			# location_header = f"/users/{user_id}/images"
 			location_header = "/home"
 			return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
@@ -471,7 +471,6 @@ api.add_resource(ImageCount, '/users/<int:user_id>/image-count')
 api.add_resource(Image, '/images/<int:image_id>')
 api.add_resource(Search, '/images/search')
 api.add_resource(MostActive, '/analytics/most-active')
-api.add_resource(CascadeDelete, '/delUser')
 api.add_resource(CascadeDelete, '/admin/users/<int:user_id>')
 
 
