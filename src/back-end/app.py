@@ -241,7 +241,8 @@ class SignIn(Resource):
 				return make_response(jsonify({"message": "Invalid credentials"}), 401)
 
 			session["user_id"] = user_id
-
+			session["is_admin"] = user_data[0]["isAdmin"] == 1
+			
 			# location_header = f"/users/{user_id}/images"
 			location_header = "/home"
 			return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
@@ -435,21 +436,31 @@ class MostActive(Resource):
 		return make_response(jsonify({"users": rows}), 200)
 	
 class CascadeDelete(Resource):
-	def delete(self, user_id):
-		# DELETE: Cascade delete a user, including all of their images -> Admin only
-		if "user_id" not in session or session["user_id"]!=user_id:
-			return make_response(jsonify({"message": "Unauthorized"}), 401)
+    def delete(self, user_id):
+        # DELETE: Cascade delete a user (admin only)
+        if "user_id" not in session or not session.get("is_admin", False):
+            return make_response(jsonify({"message": "Unauthorized"}), 401)
 
-		sqlProc = "deleteUser"
-		sqlArgs = [user_id]
+        sqlProc = "deleteUser"
+        sqlArgs = [user_id]
 
-		try:
-			success = db_access(sqlProc, sqlArgs)
-		except Exception as e:
-			abort(500, message = e)
-		return make_response(jsonify({"success": success}), 200)
+        try:
+            success = db_access(sqlProc, sqlArgs)
+            return make_response(jsonify({"success": success}), 200)
+        except Exception as e:
+            abort(500, description=str(e))
 
-	
+@app.route('/admin/manageusers')
+def manage_users():
+    if "user_id" not in session or not session.get("is_admin", False):
+        abort(403, description="Admin access required")
+    
+    try:
+        users = db_access('getAllUsers', [])
+    except Exception as e:
+        abort(500, description=str(e))
+    
+    return render_template("manage_users.html", users=users)
 ####################################################################################
 #
 # Identify/create endpoints and endpoint objects
@@ -461,6 +472,7 @@ api.add_resource(Image, '/images/<int:image_id>')
 api.add_resource(Search, '/images/search')
 api.add_resource(MostActive, '/analytics/most-active')
 api.add_resource(CascadeDelete, '/delUser')
+api.add_resource(CascadeDelete, '/admin/users/<int:user_id>')
 
 
 #############################################################################
