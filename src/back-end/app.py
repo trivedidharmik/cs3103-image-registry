@@ -22,32 +22,32 @@ app = Flask(__name__, static_folder="../front-end", static_url_path='/static', t
 
 @app.route('/storage/<path:filename>')
 def serve_image(filename):
-    # Get image metadata from the database
-    sqlProc = 'getImageByFileName'
-    sqlArgs = [filename]
-    try:
-        image_data = db_access(sqlProc, sqlArgs)
-    except Exception as e:
-        abort(404, description="Image not found")
+	# Get image metadata from the database
+	sqlProc = 'getImageByFileName'
+	sqlArgs = [filename]
+	try:
+		image_data = db_access(sqlProc, sqlArgs)
+	except Exception as e:
+		abort(404, description="Image not found")
 
-    if not image_data:
-        abort(404, description="Image not found")
+	if not image_data:
+		abort(404, description="Image not found")
 
-    image = image_data[0]
-    visibility = image["isVisible"]
-    owner_id = image["userId"]
+	image = image_data[0]
+	visibility = image["isVisible"]
+	owner_id = image["userId"]
 
-    # Public image: allow access to anyone
-    if visibility == "public":
-        storage_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage'))
-        return send_from_directory(storage_dir, filename)
+	# Public image: allow access to anyone
+	if visibility == "public":
+		storage_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage'))
+		return send_from_directory(storage_dir, filename)
 
-    # Private image: require logged-in user and ownership
-    if "user_id" not in session or session["user_id"] != owner_id:
-        abort(403, description="Unauthorized access to private image")
+	# Private image: require logged-in user and ownership
+	if "user_id" not in session or session["user_id"] != owner_id:
+		abort(403, description="Unauthorized access to private image")
 
-    storage_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage'))
-    return send_from_directory(storage_dir, filename)
+	storage_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage'))
+	return send_from_directory(storage_dir, filename)
 
 api = Api(app)
 
@@ -84,6 +84,8 @@ api.add_resource(Root,'/')
 # Static endpoint for sign in
 class SignInStatic(Resource):
 	def get(self):
+		if "user_id" in session:
+			return redirect(url_for('landing_page'))
 		return app.send_static_file('signin.html')
 
 api.add_resource(SignInStatic,'/signin')
@@ -97,59 +99,61 @@ api.add_resource(RegisterStatic, '/register')
 
 class VerifyStatic(Resource):
 	def get(self):
+		if "user_id" in session:
+			return redirect(url_for('landing_page'))
 		return app.send_static_file('verify.html')
 
 api.add_resource(VerifyStatic, '/verify')
 
-class signOutStatic(Resource):
-	def get(self):
-		if "user_id" not in session:
-			return make_response(jsonify({"message": "Unable to sign out"}), 401)
-		return app.send_static_file('signout.html')
+# class signOutStatic(Resource):
+# 	def get(self):
+# 		if "user_id" not in session:
+# 			return make_response(jsonify({"message": "Unable to sign out"}), 401)
+# 		return app.send_static_file('signout.html')
 
-api.add_resource(signOutStatic, '/signout')
+# api.add_resource(signOutStatic, '/signout')
 
 @app.route('/home')
 def landing_page():
-    if "user_id" not in session:
-        return redirect(url_for('signin'))
-    
-    keyword = request.args.get('q')  # Get search term
-    if keyword:
-        sqlProc = 'searchImages'
-        sqlArgs = [keyword]
-    else:
-        sqlProc = 'filterImagesByVisibility'
-        sqlArgs = ['public']
-    
-    try:
-        images = db_access(sqlProc, sqlArgs)
-    except Exception as e:
-        abort(500, description=str(e))
-    
-    return render_template(
-        "landing_page.html",
-        images=images,
-        is_admin=session.get("is_admin", False))
+	if "user_id" not in session:
+		return redirect(url_for('signin'))
+	
+	keyword = request.args.get('q')  # Get search term
+	if keyword:
+		sqlProc = 'searchImages'
+		sqlArgs = [keyword]
+	else:
+		sqlProc = 'filterImagesByVisibility'
+		sqlArgs = ['public']
+	
+	try:
+		images = db_access(sqlProc, sqlArgs)
+	except Exception as e:
+		abort(500, description=str(e))
+	
+	return render_template(
+		"landing_page.html",
+		images=images,
+		is_admin=session.get("is_admin", False))
 
 @app.route("/user_home")
 def user_home():
-    if "user_id" not in session:
-        return redirect(url_for('signin'))
-    
-    # Get user details
-    user_data = db_access('getUserById', [session["user_id"]])
-    if not user_data:
-        abort(404, description="User not found")
-    
-    user = user_data[0]
-    return render_template(
-        "user_home.html",
-        is_admin=session.get("is_admin", False),
-        user_id=session["user_id"],
-        username=user['username'],
-        email=user['email']
-    )
+	if "user_id" not in session:
+		return redirect(url_for('signin'))
+	
+	# Get user details
+	user_data = db_access('getUserById', [session["user_id"]])
+	if not user_data:
+		abort(404, description="User not found")
+	
+	user = user_data[0]
+	return render_template(
+		"user_home.html",
+		is_admin=session.get("is_admin", False),
+		user_id=session["user_id"],
+		username=user['username'],
+		email=user['email']
+	)
 
 
 ####################################################################################
@@ -265,69 +269,79 @@ class SignIn(Resource):
 api.add_resource(SignIn, "/signin")
 
 class SignOut(Resource):
-	def post(self):
-		'''Remove session data'''
-		session.pop("user_id", None)
-		return jsonify({"message": "Logged out successfully"}), 200
+	# Handle GET requests (direct URL access)
+	def get(self):
+		if "user_id" in session:
+			session.pop("user_id", None)
+			session.pop("is_admin", None)
+		else:
+			return redirect(url_for('signin'))
+		return app.send_static_file('signout.html')
 
-api.add_resource(SignOut , '/signout')
+	# Handle POST requests (sign-out button click)
+	def post(self):
+		session.pop("user_id", None)
+		session.pop("is_admin", None)
+		return redirect(url_for('SignOut'))
+
+api.add_resource(SignOut, '/signout')
 
 class UserUpdate(Resource):
-    def post(self, user_id):
-        if "user_id" not in session or session["user_id"] != user_id:
-            return make_response(jsonify({"message": "Unauthorized"}), 401)
-        
-        data = request.get_json()
-        errors = {}
-        
-        try:
-            # Verify current password
-            user_data = db_access('getUserById', [user_id])
-            if not bcrypt.checkpw(data['currentPassword'].encode('utf-8'), 
-                                user_data[0]['passwordHash'].encode('utf-8')):
-                errors['currentPassword'] = "Incorrect password"
-                return jsonify(success=False, errors=errors)
-            
-            update_args = [user_id]
-            proc = 'updateUser'
-            
-            # Check username availability
-            if data['newUsername'] != user_data[0]['username']:
-                existing = db_access('getUserByUsername', [data['newUsername']])
-                if existing:
-                    errors['newUsername'] = "Username not available"
-                    return jsonify(success=False, errors=errors)
-                update_args.append(data['newUsername'])
-            else:
-                update_args.append(None)
-            
-            # Handle email change
-            if data['newEmail'] != user_data[0]['email']:
-                update_args.append(data['newEmail'])
-                # Generate new verification token
-                token_proc = db_access('generateVerificationToken', [user_id])
-                token = token_proc[0]['token']
-                verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
-                send_verify_email(data['newEmail'], verify_url)
-            else:
-                update_args.append(None)
-            
-            # Handle password change
-            if data['newPassword']:
-                hashed_pw = bcrypt.hashpw(data['newPassword'].encode('utf-8'), 
-                                        bcrypt.gensalt()).decode('utf-8')
-                update_args.append(hashed_pw)
-            else:
-                update_args.append(None)
-            
-            db_access(proc, update_args)
-            return jsonify(
-                success=True,
-                requiresVerification='newEmail' in data and data['newEmail'] != user_data[0]['email']
-            )
-            
-        except Exception as e:
-            return jsonify(success=False, errors={'general': str(e)})
+	def post(self, user_id):
+		if "user_id" not in session or session["user_id"] != user_id:
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
+		
+		data = request.get_json()
+		errors = {}
+		
+		try:
+			# Verify current password
+			user_data = db_access('getUserById', [user_id])
+			if not bcrypt.checkpw(data['currentPassword'].encode('utf-8'), 
+								user_data[0]['passwordHash'].encode('utf-8')):
+				errors['currentPassword'] = "Incorrect password"
+				return jsonify(success=False, errors=errors)
+			
+			update_args = [user_id]
+			proc = 'updateUser'
+			
+			# Check username availability
+			if data['newUsername'] != user_data[0]['username']:
+				existing = db_access('getUserByUsername', [data['newUsername']])
+				if existing:
+					errors['newUsername'] = "Username not available"
+					return jsonify(success=False, errors=errors)
+				update_args.append(data['newUsername'])
+			else:
+				update_args.append(None)
+			
+			# Handle email change
+			if data['newEmail'] != user_data[0]['email']:
+				update_args.append(data['newEmail'])
+				# Generate new verification token
+				token_proc = db_access('generateVerificationToken', [user_id])
+				token = token_proc[0]['token']
+				verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
+				send_verify_email(data['newEmail'], verify_url)
+			else:
+				update_args.append(None)
+			
+			# Handle password change
+			if data['newPassword']:
+				hashed_pw = bcrypt.hashpw(data['newPassword'].encode('utf-8'), 
+										bcrypt.gensalt()).decode('utf-8')
+				update_args.append(hashed_pw)
+			else:
+				update_args.append(None)
+			
+			db_access(proc, update_args)
+			return jsonify(
+				success=True,
+				requiresVerification='newEmail' in data and data['newEmail'] != user_data[0]['email']
+			)
+			
+		except Exception as e:
+			return jsonify(success=False, errors={'general': str(e)})
 
 class UserImages(Resource):
 	
@@ -476,21 +490,21 @@ class Image(Resource):
 			abort(500, description=str(e))
 
 class Search(Resource):
-    def get(self):
-        # Get search query from URL parameters
-        keyword = request.args.get('q')
-        if not keyword:
-            abort(400, description="Missing search query")
+	def get(self):
+		# Get search query from URL parameters
+		keyword = request.args.get('q')
+		if not keyword:
+			abort(400, description="Missing search query")
 
-        sqlProc = 'searchImagesByTitle'
-        sqlArgs = [keyword]
-        try:
-            rows = db_access(sqlProc, sqlArgs)
-        except Exception as e:
-            abort(500, description=str(e))
-        
-        # Return results directly (stored procedure ensures visibility is public)
-        return make_response(jsonify({'images': rows}), 200)	
+		sqlProc = 'searchImagesByTitle'
+		sqlArgs = [keyword]
+		try:
+			rows = db_access(sqlProc, sqlArgs)
+		except Exception as e:
+			abort(500, description=str(e))
+		
+		# Return results directly (stored procedure ensures visibility is public)
+		return make_response(jsonify({'images': rows}), 200)	
 
 class MostActive(Resource):
 	def get(self):
@@ -505,31 +519,31 @@ class MostActive(Resource):
 		return make_response(jsonify({"users": rows}), 200)
 	
 class CascadeDelete(Resource):
-    def delete(self, user_id):
-        # DELETE: Cascade delete a user (admin only)
-        if "user_id" not in session or not session.get("is_admin", False):
-            return make_response(jsonify({"message": "Unauthorized"}), 401)
+	def delete(self, user_id):
+		# DELETE: Cascade delete a user (admin only)
+		if "user_id" not in session or not session.get("is_admin", False):
+			return make_response(jsonify({"message": "Unauthorized"}), 401)
 
-        sqlProc = "deleteUser"
-        sqlArgs = [user_id]
+		sqlProc = "deleteUser"
+		sqlArgs = [user_id]
 
-        try:
-            success = db_access(sqlProc, sqlArgs)
-            return make_response(jsonify({"success": success}), 200)
-        except Exception as e:
-            abort(500, description=str(e))
+		try:
+			success = db_access(sqlProc, sqlArgs)
+			return make_response(jsonify({"success": success}), 200)
+		except Exception as e:
+			abort(500, description=str(e))
 
 @app.route('/admin/manageusers')
 def manage_users():
-    if "user_id" not in session or not session.get("is_admin", False):
-        abort(403, description="Admin access required")
-    
-    try:
-        users = db_access('getAllUsers', [])
-    except Exception as e:
-        abort(500, description=str(e))
-    
-    return render_template("manage_users.html", users=users)
+	if "user_id" not in session or not session.get("is_admin", False):
+		abort(403, description="Admin access required")
+	
+	try:
+		users = db_access('getAllUsers', [])
+	except Exception as e:
+		abort(500, description=str(e))
+	
+	return render_template("manage_users.html", users=users)
 ####################################################################################
 #
 # Identify/create endpoints and endpoint objects
