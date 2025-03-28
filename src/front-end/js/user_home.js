@@ -14,7 +14,8 @@ window.onload = function () {
   fetch(`/users/${userId}/image-count`)
     .then((response) => response.json())
     .then((data) => {
-      document.getElementById("imageCount").textContent = data.count;
+      document.getElementById("imageCount").textContent =
+        data.count[0]["COUNT(*)"];
     });
 
   // Load images
