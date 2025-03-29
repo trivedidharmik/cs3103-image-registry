@@ -507,16 +507,26 @@ class Search(Resource):
 		return make_response(jsonify({'images': rows}), 200)	
 
 class MostActive(Resource):
-	def get(self):
-		# GET: Get the most active user(s) -> Admin only
-		sqlProc = "getMostActiveUploaders"
-		sqlArgs = []
+    def get(self):
+        try:
+            rows = db_access("getMostActiveUploaders", [])  
+        except Exception as e:
+            abort(500, message=str(e))
 
-		try:
-			rows = db_access(sqlProc, sqlArgs)
-		except Exception as e:
-			abort(500, message = e)
-		return make_response(jsonify({"users": rows}), 200)
+        top3_users = []
+        for row in rows:
+            userId = row["userId"]
+            user_data = db_access("getUserById", [userId])  # Must write a procedure that returns {username, userId, etc.}
+            username = user_data[0]["username"] if user_data else "Unknown"
+            imageCount = row["imageCount"]
+            top3_users.append({
+                "userId": userId,
+                "username": username,
+                "imageCount": imageCount
+            })
+
+        return jsonify({"users": top3_users})
+
 	
 class CascadeDelete(Resource):
 	def delete(self, user_id):
