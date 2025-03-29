@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+window.onload = function() {
     fetch("/analytics/most-active")
       .then(resp => resp.json())
       .then(data => {
@@ -19,5 +19,4 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch(err => {
         console.error("Error fetching top 3 uploaders:", err);
       });
-  });
-  
+  };
