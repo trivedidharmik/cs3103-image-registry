@@ -214,7 +214,7 @@ class Verify(Resource):
 			if result:
 				if result[0]["success"] == 1:
 					session["user_id"] = user_id
-					location_header = f"/users/{user_id}/images"
+					location_header = f"/home"
 					return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
 				
 				return make_response(jsonify({"message": "Invalid verification token"}), 401)
@@ -229,8 +229,13 @@ api.add_resource(Verify, "/users/<int:user_id>/verify/<string:token_id>")
 
 class SignIn(Resource):
 	def post(self):
-		email = request.form.get("email")
-		password = request.form.get("password")
+		if request.is_json:
+			data = request.get_json()
+			email = data.get("email")
+			password = data.get("password")
+		else:
+			email = request.form.get("email")
+			password = request.form.get("password")
 
 		if not email or not password:
 			abort(400, description="Missing email or password")
@@ -461,16 +466,22 @@ class Image(Resource):
 		img = row[0]
 		if img["isVisible"] == "private":
 	
-			if "user_id" not in session or session["user_id"]!=img["user_id"]:
+			if "user_id" not in session or session["user_id"]!=img["userId"]:
 				return make_response(jsonify({"message": "Unauthorized"}), 401)
 
 		return make_response(jsonify({"image": row}), 200)
 
 	def post(self, image_id):
 		# POST: Update a given image contents
-		title = request.form.get('title')
-		desc = request.form.get('desc')
-		isVisible = request.form.get('isVisible')
+		if request.is_json:
+			data = request.get_json()
+			title = data.get("title")
+			desc = data.get("desc")
+			isVisible = data.get("isVisibile")
+		else:
+			title = request.form.get('title')
+			desc = request.form.get('desc')
+			isVisible = request.form.get('isVisible')
 		# Verify ownership
 		sqlProc = "getImageOwner"
 		sqlArgs = [image_id]
