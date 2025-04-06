@@ -15,11 +15,13 @@
       background-color: #ffffff;
     }
   </style>
+  <script src="/static/js/register.js"></script>
 </head>
 <body>
   <div class="container d-flex justify-content-center align-items-center vh-100">
     <div class="card card-custom p-4" style="max-width: 400px; width: 100%;">
       <h2 class="text-center mb-4">Register</h2>
+      <div id="error-box" class="alert alert-danger d-none" role="alert"></div>
       <form method="POST" action="/register">
         <div class="mb-3">
           <label for="username" class="form-label">Username</label>

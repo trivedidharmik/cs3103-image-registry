@@ -199,8 +199,9 @@ class Register(Resource):
 		except Exception as e:
 			abort(500, description=str(e))
 		
-		location_header = "/verify"
-		return make_response(jsonify({"message": "Registration successful. Please verify your email."}), 301, {"Location": location_header})
+		response = jsonify({"message": "Login successful", "redirect": "/verify"})
+		response.status_code = 200
+		return response
 
 api.add_resource(Register, "/register")
 
@@ -264,9 +265,9 @@ class SignIn(Resource):
 			session["user_id"] = user_id
 			session["is_admin"] = user_data[0]["isAdmin"] == 1
 
-			# location_header = f"/users/{user_id}/images"
-			location_header = "/home"
-			return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
+			response = jsonify({"message": "Login successful", "redirect": "/home"})
+			response.status_code = 200
+			return response
 
 		except Exception as e:
 			abort(500, description=str(e))
