@@ -2,7 +2,7 @@ DELIMITER $$
 
 CREATE PROCEDURE getUserByEmail(IN user_email VARCHAR(255))
 BEGIN
-    SELECT userId, email, passwordHash, createdAt, isAdmin
+    SELECT userId, username, email, passwordHash, createdAt, isAdmin
     FROM Users
     WHERE email = user_email
     LIMIT 1;

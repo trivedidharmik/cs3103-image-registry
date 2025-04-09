@@ -118,6 +118,16 @@ window.onload = function () {
       e.preventDefault();
       const userId = document.getElementById("userId").value;
 
+      // Clear previous errors
+      showFormErrors({});
+
+      // Show loading state
+      const submitBtn = this.querySelector('button[type="submit"]');
+      const originalBtnText = submitBtn.innerHTML;
+      submitBtn.innerHTML =
+        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+      submitBtn.disabled = true;
+
       const updateData = {
         newUsername: document.getElementById("newUsername").value,
         newEmail: document.getElementById("newEmail").value,
@@ -134,23 +144,46 @@ window.onload = function () {
       })
         .then((response) => response.json())
         .then((data) => {
+          // Reset button state
+          submitBtn.innerHTML = originalBtnText;
+          submitBtn.disabled = false;
+
           if (data.success) {
             const modal = bootstrap.Modal.getInstance(
               document.getElementById("profileModal")
             );
             if (modal) modal.hide();
+
             if (data.requiresVerification) {
-              alert("Verification email sent to new address");
+              // Show success message with verification notice
+              showAlert(
+                "success",
+                "Profile updated! Verification email sent to your new email address."
+              );
+            } else {
+              // Show success message
+              showAlert("success", "Profile updated successfully!");
             }
-            window.location.reload();
+
+            // Reload page after a short delay to show the alert
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
           } else {
             showFormErrors(data.errors);
           }
         })
-        .catch((error) => console.error("Update error:", error));
+        .catch((error) => {
+          // Reset button state
+          submitBtn.innerHTML = originalBtnText;
+          submitBtn.disabled = false;
+
+          console.error("Update error:", error);
+          showAlert("danger", "An error occurred while updating your profile.");
+        });
     });
 
-  // Handle edit form submissions
+  // Add event listener for image edit submissions
   document.addEventListener("submit", handleEditSubmit);
 };
 
@@ -255,12 +288,42 @@ function showFormErrors(errors) {
 
   for (const [field, message] of Object.entries(errors)) {
     const input = document.getElementById(field);
-    const feedback = document.getElementById(`${field}Feedback`);
-    if (input && feedback) {
+    if (input) {
       input.classList.add("is-invalid");
+
+      // Find or create feedback element
+      let feedback = document.getElementById(`${field}Feedback`);
+      if (!feedback) {
+        feedback = document.createElement("div");
+        feedback.id = `${field}Feedback`;
+        feedback.className = "invalid-feedback";
+        input.parentNode.appendChild(feedback);
+      }
+
       feedback.textContent = message;
     }
   }
+}
+
+function showAlert(type, message) {
+  // Create alert element
+  const alertEl = document.createElement("div");
+  alertEl.className = `alert alert-${type} alert-dismissible fade show`;
+  alertEl.role = "alert";
+  alertEl.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  `;
+
+  // Add to page
+  const container = document.querySelector(".container");
+  container.insertBefore(alertEl, container.firstChild);
+
+  // Auto-dismiss after 5 seconds
+  setTimeout(() => {
+    const bsAlert = new bootstrap.Alert(alertEl);
+    bsAlert.close();
+  }, 5000);
 }
 
 // Modal handling

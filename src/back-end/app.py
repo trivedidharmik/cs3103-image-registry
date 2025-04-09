@@ -310,6 +310,7 @@ class UserUpdate(Resource):
 		
 		data = request.get_json()
 		errors = {}
+		requires_verification = False
 		
 		try:
 			# Verify current password
@@ -334,12 +335,19 @@ class UserUpdate(Resource):
 			
 			# Handle email change
 			if data['newEmail'] != user_data[0]['email']:
+				existing_email = db_access('getUserByEmail', [data['newEmail']])
+				if existing_email:
+					errors['newEmail'] = "Email already in use by another account"
+					return jsonify(success=False, errors=errors)
+
 				update_args.append(data['newEmail'])
-				# Generate new verification token
-				token_proc = db_access('generateVerificationToken', [user_id])
-				token = token_proc[0]['token']
-				verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
-				send_verify_email(data['newEmail'], verify_url)
+				requires_verification = True
+
+				# # Generate new verification token
+				# token_proc = db_access('generateVerificationToken', [user_id])
+				# token = token_proc[0]['token']
+				# verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
+				# send_verify_email(data['newEmail'], verify_url)
 			else:
 				update_args.append(None)
 			
@@ -351,11 +359,22 @@ class UserUpdate(Resource):
 			else:
 				update_args.append(None)
 			
-			db_access(proc, update_args)
-			return jsonify(
-				success=True,
-				requiresVerification='newEmail' in data and data['newEmail'] != user_data[0]['email']
-			)
+			if not errors:
+				db_access(proc, update_args)
+                # Only send verification email if email is changed and no errors
+				if requires_verification:
+					# Generate new verification token
+					token_proc = db_access('generateVerificationToken', [user_id])
+					token = token_proc[0]['token']
+					verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
+					send_verify_email(data['newEmail'], verify_url)
+				
+				return jsonify(
+					success=True,
+					requiresVerification=requires_verification
+				)
+			else:
+				return jsonify(success=False, errors=errors)
 			
 		except Exception as e:
 			return jsonify(success=False, errors={'general': str(e)})
