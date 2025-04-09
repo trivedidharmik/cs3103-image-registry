@@ -105,6 +105,12 @@ class VerifyStatic(Resource):
 
 api.add_resource(VerifyStatic, '/verify')
 
+class VerificationErrorStatic(Resource):
+    def get(self):
+        return app.send_static_file('verification_error.html')
+
+api.add_resource(VerificationErrorStatic, '/verify/error')
+
 # class signOutStatic(Resource):
 # 	def get(self):
 # 		if "user_id" not in session:
@@ -218,13 +224,18 @@ class Verify(Resource):
 					location_header = f"/home"
 					return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
 				
-				return make_response(jsonify({"message": "Invalid verification token"}), 401)
+				# Redirect to error page
+				return redirect(url_for('VerificationErrorStatic'))
 		
-			return make_response(jsonify({"message": "Unable to find token"}), 401)
+			# Redirect to error page
+			return redirect(url_for('VerificationErrorStatic'))
 			
 			
 		except Exception as e:
-			abort(500, description=str(e))
+			# Log the error
+			print(f"Verification error: {str(e)}")
+			# Still redirect to error page
+			return redirect(url_for('VerificationErrorStatic'))
 
 api.add_resource(Verify, "/users/<int:user_id>/verify/<string:token_id>")
 
