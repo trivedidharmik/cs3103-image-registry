@@ -121,10 +121,10 @@ def landing_page():
 	keyword = request.args.get('q')  # Get search term
 	if keyword:
 		sqlProc = 'searchImages'
-		sqlArgs = [keyword]
+		sqlArgs = [keyword, session["user_id"]]
 	else:
-		sqlProc = 'filterImagesByVisibility'
-		sqlArgs = ['public']
+		sqlProc = 'getPublicAndUserPrivateImages'
+		sqlArgs = [session["user_id"]]
 	
 	try:
 		images = db_access(sqlProc, sqlArgs)
