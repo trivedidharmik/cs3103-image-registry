@@ -225,17 +225,17 @@ class Verify(Resource):
 					return make_response(jsonify({"message": "Login successful"}), 301, {"Location": location_header})
 				
 				# Redirect to error page
-				return redirect(url_for('VerificationErrorStatic'))
+				return redirect(url_for('verificationerrorstatic'))
 		
 			# Redirect to error page
-			return redirect(url_for('VerificationErrorStatic'))
+			return redirect(url_for('verificationerrorstatic'))
 			
 			
 		except Exception as e:
 			# Log the error
 			print(f"Verification error: {str(e)}")
 			# Still redirect to error page
-			return redirect(url_for('VerificationErrorStatic'))
+			return redirect(url_for('verificationerrorstatic'))
 
 api.add_resource(Verify, "/users/<int:user_id>/verify/<string:token_id>")
 
