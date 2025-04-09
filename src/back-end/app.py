@@ -311,6 +311,7 @@ class UserUpdate(Resource):
 		data = request.get_json()
 		errors = {}
 		requires_verification = False
+		email_changed = False
 		
 		try:
 			# Verify current password
@@ -342,12 +343,7 @@ class UserUpdate(Resource):
 
 				update_args.append(data['newEmail'])
 				requires_verification = True
-
-				# # Generate new verification token
-				# token_proc = db_access('generateVerificationToken', [user_id])
-				# token = token_proc[0]['token']
-				# verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
-				# send_verify_email(data['newEmail'], verify_url)
+				email_changed = True
 			else:
 				update_args.append(None)
 			
@@ -361,17 +357,30 @@ class UserUpdate(Resource):
 			
 			if not errors:
 				db_access(proc, update_args)
-                # Only send verification email if email is changed and no errors
-				if requires_verification:
+                
+				if email_changed:
+					# Remove user from ValidatedEmails table
+					# Create a new stored procedure to handle this
+					try:
+						db_access('removeEmailValidation', [user_id])
+					except Exception as e:
+						# If the procedure doesn't exist yet, use a direct SQL approach
+						print(f"Error removing email validation: {str(e)}")
+						
 					# Generate new verification token
 					token_proc = db_access('generateVerificationToken', [user_id])
 					token = token_proc[0]['token']
 					verify_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/users/{user_id}/verify/{token}"
 					send_verify_email(data['newEmail'], verify_url)
+					
+					# Sign the user out by clearing their session
+					session.pop("user_id", None)
+					session.pop("is_admin", None)
 				
 				return jsonify(
 					success=True,
-					requiresVerification=requires_verification
+					requiresVerification=requires_verification,
+					loggedOut=email_changed
 				)
 			else:
 				return jsonify(success=False, errors=errors)

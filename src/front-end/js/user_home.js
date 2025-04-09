@@ -154,21 +154,37 @@ window.onload = function () {
             );
             if (modal) modal.hide();
 
-            if (data.requiresVerification) {
-              // Show success message with verification notice
+            if (data.loggedOut) {
+              // Email changed - show message about verification needed and redirect to sign-in
+              showAlert(
+                "success",
+                "Email updated. Please check your new email for verification instructions before signing in again."
+              );
+
+              // Redirect to sign in page after a short delay
+              setTimeout(() => {
+                window.location.href = "/signin";
+              }, 3000);
+            } else if (data.requiresVerification) {
+              // This case is now likely unused since email changes force logout
               showAlert(
                 "success",
                 "Profile updated! Verification email sent to your new email address."
               );
-            } else {
-              // Show success message
-              showAlert("success", "Profile updated successfully!");
-            }
 
-            // Reload page after a short delay to show the alert
-            setTimeout(() => {
-              window.location.reload();
-            }, 2000);
+              // Reload page after a short delay to show the alert
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+            } else {
+              // Just a regular update (username/password), no email change
+              showAlert("success", "Profile updated successfully!");
+
+              // Reload page after a short delay to show the alert
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+            }
           } else {
             showFormErrors(data.errors);
           }
